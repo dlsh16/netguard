@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.47 | 최종 업데이트: 2026-07-29
+> 버전: 1.2.48 | 최종 업데이트: 2026-07-29
 
 ---
 
@@ -590,6 +590,33 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.48 (2026-07-29) - Git 자동 갱신 감시 구성
+
+#### 변경 사항
+- `scripts/watch_git_auto_update.ps1`: 파일 변경을 감지해 안전한 소스/문서 변경분을 자동 `git add`, `commit`, `push`하는 감시 스크립트 추가
+- `scripts/install_git_auto_update_task.ps1`, `.bat`: Windows 작업 스케줄러에 `NetGuardGitAutoUpdate` 작업을 등록하고 로그인 시 자동 실행되도록 구성
+- `scripts/uninstall_git_auto_update_task.ps1`, `.bat`: 자동 갱신 작업 제거 스크립트 추가
+- `scripts/start_git_auto_update.bat`: 콘솔에서 감시 스크립트를 직접 실행하는 배치 파일 추가
+- `docs/GIT_WORKFLOW.md`: 자동 갱신 감시 실행, 작업 스케줄러 등록/해제, 로그 확인 절차 추가
+
+#### 보호 기준
+- 자동 커밋 대상에서 `config/config.yaml`, `agent/*_config.json`, `logs/`, `data/`, `backend/data/`, `__pycache__/`, 점검 결과물, 압축 파일, 로컬 DB 파일은 제외한다.
+- 자동 갱신 로그는 `logs/git_auto_update.log`에 남기며 Git에는 커밋하지 않는다.
+
+#### 실행 방법
+
+```powershell
+cd E:\SNMP\SNMP_Codex
+.\scripts\install_git_auto_update_task.bat
+```
+
+상태 확인:
+
+```powershell
+Get-ScheduledTask -TaskName NetGuardGitAutoUpdate
+Get-Content E:\SNMP\SNMP_Codex\logs\git_auto_update.log -Tail 50
+```
 
 ### v1.2.47 (2026-07-29) - Git 형상 관리 구성
 

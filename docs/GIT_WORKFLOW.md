@@ -75,6 +75,52 @@ View history:
 git log --oneline --decorate -n 20
 ```
 
+## Auto Update Watcher
+
+NetGuard can automatically commit and push safe source/document changes when files are modified.
+
+Run once in the foreground:
+
+```powershell
+cd E:\SNMP\SNMP_Codex
+powershell -ExecutionPolicy Bypass -File .\scripts\watch_git_auto_update.ps1
+```
+
+Install as a Windows scheduled task:
+
+```powershell
+cd E:\SNMP\SNMP_Codex
+.\scripts\install_git_auto_update_task.bat
+```
+
+The task name is `NetGuardGitAutoUpdate`. It runs at user logon and watches the repository every 60 seconds. When changes remain stable for 30 seconds, it commits and pushes them to `origin/main`.
+
+Check watcher logs:
+
+```powershell
+Get-Content E:\SNMP\SNMP_Codex\logs\git_auto_update.log -Tail 50
+```
+
+Check task state:
+
+```powershell
+Get-ScheduledTask -TaskName NetGuardGitAutoUpdate
+Get-ScheduledTaskInfo -TaskName NetGuardGitAutoUpdate
+```
+
+Stop/remove the automatic watcher:
+
+```powershell
+cd E:\SNMP\SNMP_Codex
+.\scripts\uninstall_git_auto_update_task.bat
+```
+
+Run without pushing to GitHub:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\watch_git_auto_update.ps1 -NoPush
+```
+
 ## Before Deployment
 
 Create a release tag:
