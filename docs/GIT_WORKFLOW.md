@@ -80,13 +80,13 @@ git log --oneline --decorate -n 20
 Create a release tag:
 
 ```powershell
-git tag -a v1.2.46 -m "NetGuard v1.2.46"
+git tag -a v1.2.47 -m "NetGuard v1.2.47"
 ```
 
 Export source only:
 
 ```powershell
-git archive --format zip --output E:\SNMP\netguard-source-v1.2.46.zip HEAD
+git archive --format zip --output E:\SNMP\netguard-source-v1.2.47.zip HEAD
 ```
 
 Copy runtime files separately:
@@ -101,4 +101,3 @@ Copy runtime files separately:
 - Do not commit NVD cache JSON files. They are large runtime data and should be transferred separately.
 - Commit after each confirmed functional change and after updating the guide document.
 - Use clear commit messages with the affected area, for example `Fix SMTP DNS error reporting`.
-
