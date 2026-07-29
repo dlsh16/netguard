@@ -182,6 +182,11 @@ def _describe_smtp_error(exc: Exception, host: str, port: int) -> str:
             f"SMTP server connection failed: {host}:{port}. "
             "Check firewall, routing, SMTP port, and relay service status."
         )
+    if isinstance(exc, smtplib.SMTPServerDisconnected):
+        return (
+            f"SMTP server disconnected or did not send a valid SMTP response: {host}:{port}. "
+            "Check the SMTP port, TLS/STARTTLS mode, relay policy, and whether the server allows this NetGuard host."
+        )
     if isinstance(exc, smtplib.SMTPAuthenticationError):
         return "SMTP authentication failed. Check SMTP account and password."
     if isinstance(exc, smtplib.SMTPRecipientsRefused):

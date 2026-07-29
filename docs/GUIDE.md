@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.48 | 최종 업데이트: 2026-07-29
+> 버전: 1.2.49 | 최종 업데이트: 2026-07-29
 
 ---
 
@@ -590,6 +590,43 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.49 (2026-07-29) - SMTP 서버 응답 타임아웃 진단 보강
+
+#### 확인된 로그
+- `POST /api/alert-config/test-email` 요청은 NetGuard 서버까지 정상 도착했다.
+- 알림 설정 저장도 `POST /api/alert-config HTTP/1.1" 200 OK`로 정상 처리되었다.
+- 테스트 메일 단계에서 `SMTP test email failed: Connection unexpectedly closed: timed out`가 발생했다.
+
+#### 판단
+- `Name or service not known` 단계와 달리, 이번 증상은 SMTP 서버명 해석 이후의 문제다.
+- SMTP 서버가 지정 포트에서 SMTP 배너/EHLO 응답을 주지 않거나, 방화벽/릴레이 정책/TLS 방식/포트 설정이 맞지 않는 상태로 판단한다.
+
+#### 변경 사항
+- `backend/api/routes.py`: `SMTPServerDisconnected` 예외를 별도 분류해 SMTP 포트, TLS/STARTTLS, 릴레이 허용 정책을 점검하도록 메시지 개선
+- `backend/alerts/alert_manager.py`: 실제 이벤트 메일 발송 실패 로그에도 같은 분류 적용
+
+#### 현장 확인 명령
+
+```bash
+getent hosts mail.hlcompany.com
+nc -vz mail.hlcompany.com 25
+nc -vz mail.hlcompany.com 587
+nc -vz mail.hlcompany.com 465
+```
+
+포트별 SMTP 응답 확인:
+
+```bash
+timeout 10 bash -c 'cat < /dev/tcp/mail.hlcompany.com/25'
+openssl s_client -starttls smtp -connect mail.hlcompany.com:587 -crlf
+openssl s_client -connect mail.hlcompany.com:465 -crlf
+```
+
+운영 기준:
+- 내부 릴레이 25번 포트를 사용하는 경우 SMTP 계정/비밀번호를 비워두고, 메일 서버에서 NetGuard 서버 IP의 릴레이를 허용해야 한다.
+- 587번 포트를 사용하는 경우 STARTTLS와 계정 인증이 필요할 수 있다.
+- 465번 포트는 SMTPS 방식이므로 현재 NetGuard 기본 SMTP 테스트 방식과 다를 수 있다.
 
 ### v1.2.48 (2026-07-29) - Git 자동 갱신 감시 구성
 
