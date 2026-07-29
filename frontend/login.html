@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetGuard — 로그인</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+    }
+    .logo-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
+      gap: 8px;
+    }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon {
+      background: #3B82F6;
+      border-radius: 8px;
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo-text { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+    .logo-sub  { font-size: 12px; color: #8b949e; }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 12px;
+      padding: 32px;
+    }
+    .form-group { margin-bottom: 18px; }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
+    }
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #e6edf3;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus { border-color: #3B82F6; box-shadow: 0 0 0 3px rgba(59,130,246,0.12); }
+    .btn-login {
+      width: 100%;
+      background: #3B82F6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 11px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 4px;
+      transition: background 0.15s;
+    }
+    .btn-login:hover:not(:disabled) { background: #2563eb; }
+    .btn-login:disabled { background: #1e3a5f; cursor: not-allowed; color: #5b7fa6; }
+    .error-msg {
+      min-height: 20px;
+      margin-top: 12px;
+      text-align: center;
+      font-size: 12px;
+      color: #ef4444;
+    }
+    .footer {
+      margin-top: 24px;
+      text-align: center;
+      font-size: 11px;
+      color: #3a4555;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="logo-area">
+      <div class="logo-row">
+        <div class="logo-icon">
+          <svg width="22" height="22" viewBox="0 0 28 28" fill="none">
+            <path d="M6 14h4l3-7 4 14 3-10 2 3h6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <span class="logo-text">NetGuard</span>
+      </div>
+      <span class="logo-sub">SNMP 통합 모니터링 시스템</span>
+    </div>
+
+    <div class="card">
+      <div class="form-group">
+        <label for="username">사용자 이름</label>
+        <input type="text" id="username" placeholder="아이디 입력" autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label for="password">비밀번호</label>
+        <input type="password" id="password" placeholder="비밀번호 입력" autocomplete="current-password" />
+      </div>
+      <button class="btn-login" id="btn-login" onclick="doLogin()">로그인</button>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <div class="footer">NetGuard v1.2 &bull; 오프라인 전용 시스템</div>
+  </div>
+
+  <script>
+    'use strict';
+    document.addEventListener('DOMContentLoaded', () => {
+      if (localStorage.getItem('ng_token')) { location.href = '/'; return; }
+      document.getElementById('username').focus();
+      document.getElementById('username').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('password').focus();
+      });
+      document.getElementById('password').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doLogin();
+      });
+    });
+
+    async function doLogin() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btn-login');
+      const err = document.getElementById('error-msg');
+      err.textContent = '';
+      if (!username || !password) { err.textContent = '아이디와 비밀번호를 입력하세요.'; return; }
+      btn.disabled = true;
+      btn.textContent = '로그인 중...';
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { err.textContent = data.detail || '로그인에 실패했습니다.'; return; }
+        localStorage.setItem('ng_token', data.access_token);
+        localStorage.setItem('ng_user', JSON.stringify({
+          username: data.username,
+          full_name: data.full_name,
+          role: data.role
+        }));
+        location.href = '/';
+      } catch {
+        err.textContent = '서버에 연결할 수 없습니다.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '로그인';
+      }
+    }
+  </script>
+</body>
+</html>

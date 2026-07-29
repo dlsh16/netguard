@@ -1,0 +1,54 @@
+# NetGuard local/runtime files
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.envdir/
+
+# Logs and runtime output
+logs/
+*.log
+*.out
+*.err
+
+# Local configuration and credentials
+config/config.yaml
+agent/agent_config.json
+agent/*_config.json
+agent/check_scripts/output/
+
+# Runtime data, large NVD cache, reports, and local DB files
+data/**
+backend/data/**
+*.db
+*.sqlite
+*.sqlite3
+
+# Archives and generated packages
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# OS/editor files
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+.vscode/

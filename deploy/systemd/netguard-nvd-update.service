@@ -1,0 +1,11 @@
+[Unit]
+Description=NetGuard NVD incremental cache update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=netguard
+WorkingDirectory=/opt/netguard
+EnvironmentFile=/etc/netguard/nvd-update.env
+ExecStart=/opt/netguard/venv/bin/python /opt/netguard/scripts/update_nvd_cache.py --cache-dir /opt/netguard/data/nvd_cache --hours 2

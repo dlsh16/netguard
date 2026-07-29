@@ -1,0 +1,11 @@
+[Unit]
+Description=Run NetGuard NVD incremental update every 2 hours
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=2h
+Persistent=true
+Unit=netguard-nvd-update.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,63 @@
+# NetGuard SNMP Dashboard - example configuration
+# Copy to config.yaml on each server and edit local values.
+
+# Database
+db_host: localhost
+db_port: 5432
+db_user: netguard
+db_password: change-me
+db_name: netguard
+
+# SNMP defaults
+snmp_community: public
+snmp_timeout: 5
+snmp_retries: 2
+snmp_poll_interval: 60
+
+# Email alerts
+smtp_host: mail.example.local
+smtp_port: 25
+smtp_user: ""
+smtp_password: ""
+smtp_from: netguard@example.local
+alert_emails:
+  - admin@example.local
+
+# KakaoTalk alerts
+kakao_enabled: false
+kakao_rest_key: ""
+kakao_channel_token: ""
+
+# Raspberry Pi sensor
+rpi_enabled: false
+rpi_ip: 192.168.1.60
+rpi_port: 8765
+
+# SNMP environmental sensor custom OIDs
+env_temp_oid: ""
+env_humidity_oid: ""
+env_temp_scale: 1.0
+env_humidity_scale: 1.0
+
+# CVE / NVD
+nvd_cache_dir: data/nvd_cache
+cve_check_interval: 3600
+
+# Default thresholds
+cpu_warn: 80.0
+cpu_crit: 95.0
+mem_warn: 75.0
+mem_crit: 90.0
+disk_warn: 80.0
+disk_crit: 90.0
+temp_warn: 30.0
+temp_crit: 35.0
+humi_warn_high: 60.0
+humi_warn_low: 40.0
+ups_batt_warn: 30.0
+ups_batt_crit: 15.0
+
+# Anomaly detection
+anomaly_zscore_threshold: 3.0
+anomaly_window_minutes: 60
+
