@@ -33,6 +33,10 @@ class Settings:
     SMTP_TIMEOUT: int = 30
     SMTP_STARTTLS: bool = False
     ALERT_EMAILS: List[str] = field(default_factory=list)
+    ALERT_NOTIFY_CRITICAL: bool = True
+    ALERT_NOTIFY_HIGH: bool = True
+    ALERT_NOTIFY_MEDIUM: bool = False
+    ALERT_DAILY_REPORT: bool = False
 
     # KakaoTalk (optional — disabled in offline mode)
     KAKAO_ENABLED: bool = False

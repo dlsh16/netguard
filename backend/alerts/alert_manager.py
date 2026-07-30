@@ -316,12 +316,23 @@ class AlertManager:
         self._active_alerts[key] = alert
         logger.warning("ALERT [%s] %s: %s", alert["severity"].upper(), alert["device"], alert["message"])
 
-        if alert["severity"] in ("critical", "warning"):
+        if self._should_notify(alert):
             await asyncio.gather(
                 self._send_email(alert),
                 self._send_kakao(alert),
                 return_exceptions=True,
             )
+
+    def _should_notify(self, alert: dict) -> bool:
+        s = self.settings
+        severity = (alert.get("severity") or "").lower()
+        if severity == "critical":
+            return bool(getattr(s, "ALERT_NOTIFY_CRITICAL", True))
+        if severity in ("warning", "high"):
+            return bool(getattr(s, "ALERT_NOTIFY_HIGH", True))
+        if severity in ("medium", "info"):
+            return bool(getattr(s, "ALERT_NOTIFY_MEDIUM", False))
+        return False
 
     async def _send_email(self, alert: dict):
         s = self.settings

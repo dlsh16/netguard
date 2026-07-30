@@ -66,6 +66,10 @@ class AlertConfigUpdate(BaseModel):
     smtp_from: Optional[str] = None
     smtp_starttls: Optional[bool] = None
     alert_emails: Optional[List[str]] = None
+    alert_notify_critical: Optional[bool] = None
+    alert_notify_high: Optional[bool] = None
+    alert_notify_medium: Optional[bool] = None
+    alert_daily_report: Optional[bool] = None
     kakao_enabled: Optional[bool] = None
     kakao_rest_key: Optional[str] = None
     kakao_channel_token: Optional[str] = None
@@ -105,6 +109,10 @@ ALERT_CONFIG_FIELDS = {
     "smtp_from": "SMTP_FROM",
     "smtp_starttls": "SMTP_STARTTLS",
     "alert_emails": "ALERT_EMAILS",
+    "alert_notify_critical": "ALERT_NOTIFY_CRITICAL",
+    "alert_notify_high": "ALERT_NOTIFY_HIGH",
+    "alert_notify_medium": "ALERT_NOTIFY_MEDIUM",
+    "alert_daily_report": "ALERT_DAILY_REPORT",
     "kakao_enabled": "KAKAO_ENABLED",
     "kakao_rest_key": "KAKAO_REST_KEY",
     "kakao_channel_token": "KAKAO_CHANNEL_TOKEN",
@@ -852,6 +860,10 @@ async def get_alert_config(request: Request):
         "smtp_from": settings.SMTP_FROM,
         "smtp_starttls": settings.SMTP_STARTTLS,
         "alert_emails": settings.ALERT_EMAILS,
+        "alert_notify_critical": settings.ALERT_NOTIFY_CRITICAL,
+        "alert_notify_high": settings.ALERT_NOTIFY_HIGH,
+        "alert_notify_medium": settings.ALERT_NOTIFY_MEDIUM,
+        "alert_daily_report": settings.ALERT_DAILY_REPORT,
         "kakao_enabled": settings.KAKAO_ENABLED,
         "kakao_rest_key": settings.KAKAO_REST_KEY,
         "kakao_channel_token": settings.KAKAO_CHANNEL_TOKEN,
