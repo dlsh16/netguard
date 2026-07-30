@@ -10,6 +10,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from database import get_db_pool
+from event_utils import find_unresolved_duplicate_event
 
 logger = logging.getLogger("netguard.agent")
 
