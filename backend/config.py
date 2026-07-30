@@ -31,6 +31,7 @@ class Settings:
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = "noreply@company.local"
     SMTP_TIMEOUT: int = 30
+    SMTP_STARTTLS: bool = False
     ALERT_EMAILS: List[str] = field(default_factory=list)
 
     # KakaoTalk (optional — disabled in offline mode)

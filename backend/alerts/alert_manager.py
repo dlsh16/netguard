@@ -282,9 +282,14 @@ class AlertManager:
         timeout = int(getattr(s, "SMTP_TIMEOUT", 30) or 30)
         smtp_cls = smtplib.SMTP_SSL if int(s.SMTP_PORT) == 465 else smtplib.SMTP
         with smtp_cls(s.SMTP_HOST, s.SMTP_PORT, timeout=timeout) as smtp:
+            if int(s.SMTP_PORT) != 465 and getattr(s, "SMTP_STARTTLS", False):
+                smtp.starttls()
+                smtp.ehlo()
             if s.SMTP_USER:
                 if int(s.SMTP_PORT) != 465:
-                    smtp.starttls()
+                    if not getattr(s, "SMTP_STARTTLS", False):
+                        smtp.starttls()
+                        smtp.ehlo()
                 smtp.login(s.SMTP_USER, s.SMTP_PASSWORD)
             smtp.send_message(msg)
 

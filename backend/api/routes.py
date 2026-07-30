@@ -64,6 +64,7 @@ class AlertConfigUpdate(BaseModel):
     smtp_user: Optional[str] = None
     smtp_password: Optional[str] = None
     smtp_from: Optional[str] = None
+    smtp_starttls: Optional[bool] = None
     alert_emails: Optional[List[str]] = None
     kakao_enabled: Optional[bool] = None
     kakao_rest_key: Optional[str] = None
@@ -102,6 +103,7 @@ ALERT_CONFIG_FIELDS = {
     "smtp_user": "SMTP_USER",
     "smtp_password": "SMTP_PASSWORD",
     "smtp_from": "SMTP_FROM",
+    "smtp_starttls": "SMTP_STARTTLS",
     "alert_emails": "ALERT_EMAILS",
     "kakao_enabled": "KAKAO_ENABLED",
     "kakao_rest_key": "KAKAO_REST_KEY",
@@ -167,9 +169,14 @@ def _smtp_send_test(settings, recipient: str):
     timeout = int(getattr(settings, "SMTP_TIMEOUT", 30) or 30)
     smtp_cls = smtplib.SMTP_SSL if int(settings.SMTP_PORT) == 465 else smtplib.SMTP
     with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as smtp:
+        if int(settings.SMTP_PORT) != 465 and getattr(settings, "SMTP_STARTTLS", False):
+            smtp.starttls()
+            smtp.ehlo()
         if settings.SMTP_USER:
             if int(settings.SMTP_PORT) != 465:
-                smtp.starttls()
+                if not getattr(settings, "SMTP_STARTTLS", False):
+                    smtp.starttls()
+                    smtp.ehlo()
             smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         smtp.send_message(msg)
 
@@ -762,6 +769,7 @@ async def get_alert_config(request: Request):
         "smtp_user": settings.SMTP_USER,
         "smtp_password": settings.SMTP_PASSWORD,
         "smtp_from": settings.SMTP_FROM,
+        "smtp_starttls": settings.SMTP_STARTTLS,
         "alert_emails": settings.ALERT_EMAILS,
         "kakao_enabled": settings.KAKAO_ENABLED,
         "kakao_rest_key": settings.KAKAO_REST_KEY,

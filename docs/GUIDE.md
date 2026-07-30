@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.51 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.52 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,36 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.52 (2026-07-30) - SMTP STARTTLS 설정 분리
+
+#### 현장 확인 결과
+- `mail.hlcompany.com:25`는 `220` SMTP 배너와 `250-STARTTLS` EHLO 응답을 정상 반환한다.
+- `mail.hlcompany.com:587`, `mail.hlcompany.com:465`는 NetGuard 서버에서 타임아웃이다.
+- 따라서 현재 환경의 기본 설정은 25번 내부 릴레이 방식이다.
+
+#### 변경 사항
+- `backend/config.py`: `SMTP_STARTTLS` 기본값 추가
+- `backend/api/routes.py`: 알림 설정 조회/저장 API에 `smtp_starttls` 추가
+- `backend/api/routes.py`: 테스트 메일 발송 시 `smtp_starttls=true`이면 계정 유무와 별개로 STARTTLS 수행
+- `backend/alerts/alert_manager.py`: 실제 이벤트 메일 발송에도 동일한 STARTTLS 분리 로직 적용
+- `frontend/index.html`, `frontend/js/dashboard.js`: 알림 설정 화면에 `STARTTLS 사용` 체크박스 추가
+- `config/config.example.yaml`: `smtp_starttls: false` 예시 추가
+
+#### 현장 권장 설정
+
+현재 확인된 Exchange 25번 릴레이 환경에서는 우선 아래처럼 설정한다.
+
+```text
+SMTP 서버: mail.hlcompany.com
+포트: 25
+계정: 비움
+비밀번호: 비움
+STARTTLS 사용: 해제
+발신 이메일: 메일 서버 릴레이 정책에 허용된 주소
+```
+
+위 설정에서 릴레이 거부가 나오면 메일 서버에서 NetGuard 서버 IP `10.60.8.186`과 발신 주소를 릴레이 허용해야 한다.
 
 ### v1.2.51 (2026-07-30) - Git 자동 커밋 변경 파일 목록 기록
 

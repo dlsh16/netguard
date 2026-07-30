@@ -2390,6 +2390,8 @@ async function renderAlertConfig() {
     setInputValue('alert-smtp-password', cfg.smtp_password || '');
     setInputValue('alert-smtp-from', cfg.smtp_from || '');
     setInputValue('alert-emails', (cfg.alert_emails || []).join(', '));
+    const smtpStarttls = document.getElementById('alert-smtp-starttls');
+    if (smtpStarttls) smtpStarttls.checked = !!cfg.smtp_starttls;
     setInputValue('alert-kakao-rest-key', cfg.kakao_rest_key || '');
     setInputValue('alert-kakao-channel-token', cfg.kakao_channel_token || '');
     const kakaoEnabled = document.getElementById('alert-kakao-enabled');
@@ -2416,6 +2418,7 @@ function getAlertConfigPayload() {
     smtp_user: document.getElementById('alert-smtp-user')?.value.trim() || '',
     smtp_password: document.getElementById('alert-smtp-password')?.value || '',
     smtp_from: document.getElementById('alert-smtp-from')?.value.trim() || '',
+    smtp_starttls: !!document.getElementById('alert-smtp-starttls')?.checked,
     alert_emails: emails,
     kakao_enabled: !!document.getElementById('alert-kakao-enabled')?.checked,
     kakao_rest_key: document.getElementById('alert-kakao-rest-key')?.value.trim() || '',
