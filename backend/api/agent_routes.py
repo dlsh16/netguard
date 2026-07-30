@@ -173,24 +173,30 @@ async def _check_and_create_event(conn, device_id: int, metric: str,
     if not thr:
         return
 
+    metric_label = metric.replace("_pct", "").upper()
     if value >= thr["crit"]:
         severity = "critical"
-        msg = f"{metric.replace('_pct','').upper()} {value}% — 임계값 초과 ({thr['crit']}%)"
+        msg = f"{metric_label} {value}% critical threshold exceeded ({thr['crit']}%)"
     elif value >= thr["warn"]:
         severity = "warning"
-        msg = f"{metric.replace('_pct','').upper()} {value}% — 경고 임계값 ({thr['warn']}%)"
+        msg = f"{metric_label} {value}% warning threshold exceeded ({thr['warn']}%)"
     else:
         return
 
-    # 같은 device_id + metric + active 이벤트가 이미 있으면 중복 생성 안 함
-    existing = await conn.fetchval(
-        """SELECT id FROM events
-           WHERE device_id=$1 AND category=$2
-             AND status='active' AND time > NOW() - INTERVAL '10 minutes'
-           LIMIT 1""",
-        device_id, thr["category"],
+    existing = await find_unresolved_duplicate_event(
+        conn,
+        device_id,
+        severity,
+        thr["category"],
+        msg,
     )
     if existing:
+        logger.info(
+            "[AGENT] Duplicate unresolved event skipped: existing_id=%s device=%s metric=%s",
+            existing,
+            device_id,
+            metric,
+        )
         return
 
     await conn.execute(

@@ -9,7 +9,7 @@ import re
 from typing import Optional
 
 
-VALUE_RE = re.compile(r"(?<![\w./-])\d+(?:\.\d+)?(?=\s*(?:%|째C|°C|C\b|GB|MB|bps|pps))")
+VALUE_RE = re.compile(r"(?<![\w./-])\d+(?:\.\d+)?(?=\s*(?:%|째C|°C|\?C|C\b|GB|MB|bps|pps))")
 SPACE_RE = re.compile(r"\s+")
 
 

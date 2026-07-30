@@ -591,6 +591,42 @@ kakao_channel_token: "채널토큰"
 
 ## 13. 업데이트 내역
 
+### v1.2.58 (2026-07-30) - 미해결 동일 이벤트 중복 생성 방지
+
+#### 변경 사항
+- `backend/event_utils.py`: 이벤트 중복 판정 공통 함수 추가
+- `backend/app.py`: SNMP 수집 이벤트 저장 시 동일 미해결 이벤트가 있으면 신규 INSERT를 생략
+- `backend/api/agent_routes.py`: 에이전트 임계값 이벤트도 동일 미해결 이벤트가 있으면 신규 INSERT를 생략
+- CPU/Memory/Disk/온도처럼 수집값만 달라지는 이벤트는 숫자 값을 정규화해 같은 이벤트로 판단
+- 이벤트 상태가 `resolved`로 변경된 뒤 같은 조건이 다시 발생하면 신규 이벤트로 생성
+
+#### 중복 판정 기준
+- `device_id`
+- `severity`
+- `category`
+- 숫자 수집값을 정규화한 `message`
+- `status IN ('active', 'acknowledged')`
+
+#### 운영 확인
+같은 알림이 반복 발생할 때 미해결 이벤트가 1건만 유지되는지 확인한다.
+
+```bash
+sudo -u postgres psql -d netguard -c "
+select device_id, severity, category, message, status, count(*)
+from events
+where status in ('active', 'acknowledged')
+group by device_id, severity, category, message, status
+having count(*) > 1
+order by count(*) desc;
+"
+```
+
+서비스 로그에서 중복 생략 로그를 확인할 수 있다.
+
+```bash
+sudo journalctl -u netguard -n 120 --no-pager | egrep -i "Duplicate unresolved event skipped|Event save failed|AGENT"
+```
+
 ### v1.2.57 (2026-07-30) - Exchange SMTP raw socket 발송 우선 적용
 
 #### 현장 확인 결과
