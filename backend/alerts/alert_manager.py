@@ -279,9 +279,12 @@ class AlertManager:
 
     @staticmethod
     def _smtp_send(msg, s):
-        with smtplib.SMTP(s.SMTP_HOST, s.SMTP_PORT, timeout=10) as smtp:
+        timeout = int(getattr(s, "SMTP_TIMEOUT", 30) or 30)
+        smtp_cls = smtplib.SMTP_SSL if int(s.SMTP_PORT) == 465 else smtplib.SMTP
+        with smtp_cls(s.SMTP_HOST, s.SMTP_PORT, timeout=timeout) as smtp:
             if s.SMTP_USER:
-                smtp.starttls()
+                if int(s.SMTP_PORT) != 465:
+                    smtp.starttls()
                 smtp.login(s.SMTP_USER, s.SMTP_PASSWORD)
             smtp.send_message(msg)
 

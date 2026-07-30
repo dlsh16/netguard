@@ -20,6 +20,7 @@ smtp_port: 25
 smtp_user: ""
 smtp_password: ""
 smtp_from: netguard@example.local
+smtp_timeout: 30
 alert_emails:
   - admin@example.local
 
@@ -60,4 +61,3 @@ ups_batt_crit: 15.0
 # Anomaly detection
 anomaly_zscore_threshold: 3.0
 anomaly_window_minutes: 60
-

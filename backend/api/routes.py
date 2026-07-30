@@ -164,9 +164,12 @@ def _smtp_send_test(settings, recipient: str):
     msg["Subject"] = "[NetGuard] SMTP Test"
     msg["From"] = settings.SMTP_FROM
     msg["To"] = recipient
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
+    timeout = int(getattr(settings, "SMTP_TIMEOUT", 30) or 30)
+    smtp_cls = smtplib.SMTP_SSL if int(settings.SMTP_PORT) == 465 else smtplib.SMTP
+    with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as smtp:
         if settings.SMTP_USER:
-            smtp.starttls()
+            if int(settings.SMTP_PORT) != 465:
+                smtp.starttls()
             smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         smtp.send_message(msg)
 

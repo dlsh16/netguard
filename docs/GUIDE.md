@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.49 | 최종 업데이트: 2026-07-29
+> 버전: 1.2.50 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,57 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.50 (2026-07-30) - SMTP 포트별 연결 방식 및 타임아웃 보강
+
+#### 현장 확인 결과
+- `mail.hlcompany.com`은 `10.21.14.20`으로 DNS 해석된다.
+- `25/tcp`는 TCP 연결이 된다.
+- `587/tcp`, `465/tcp`는 타임아웃이다.
+
+#### 판단
+- NetGuard 알림 설정은 우선 `SMTP 서버=mail.hlcompany.com`, `포트=25`로 설정해야 한다.
+- 587/465는 현재 NetGuard 서버에서 접근할 수 없으므로 사용하지 않는다.
+- 25번 연결은 열려 있지만 SMTP 배너/EHLO 응답이 정상인지 별도 확인이 필요하다.
+- 내부 릴레이 방식이면 SMTP 계정/비밀번호는 비워두고, 메일 서버에서 NetGuard 서버 IP의 릴레이 허용이 필요하다.
+
+#### 변경 사항
+- `backend/config.py`: `SMTP_TIMEOUT` 기본값 30초 추가
+- `backend/api/routes.py`, `backend/alerts/alert_manager.py`: SMTP 연결 타임아웃을 설정값으로 사용
+- `backend/api/routes.py`, `backend/alerts/alert_manager.py`: 465번 포트 사용 시 `SMTP_SSL` 방식으로 연결
+- `config/config.example.yaml`: `smtp_timeout: 30` 예시 추가
+
+#### 추가 확인 명령
+
+25번 포트에서 SMTP 배너와 EHLO 응답을 확인한다.
+
+```bash
+printf 'EHLO netguard-srv\r\nQUIT\r\n' | nc -v -w 15 mail.hlcompany.com 25
+```
+
+정상 예시는 `220`, `250` 응답이 보여야 한다. 아무 응답 없이 타임아웃이면 메일 서버가 NetGuard 서버 IP에 SMTP 응답을 주지 않는 상태이므로 메일 서버 릴레이/방화벽 정책을 확인한다.
+
+Python SMTP 직접 테스트:
+
+```bash
+sudo -u netguard /opt/netguard/venv/bin/python - <<'PY'
+import smtplib
+host = "mail.hlcompany.com"
+port = 25
+with smtplib.SMTP(host, port, timeout=30) as smtp:
+    print(smtp.noop())
+PY
+```
+
+NetGuard 알림 설정 권장값:
+
+```text
+SMTP 서버: mail.hlcompany.com
+포트: 25
+계정: 비움
+비밀번호: 비움
+발신 이메일: 메일 서버 릴레이 정책에 허용된 주소
+```
 
 ### v1.2.49 (2026-07-29) - SMTP 서버 응답 타임아웃 진단 보강
 
