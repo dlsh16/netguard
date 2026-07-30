@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.50 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.51 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,28 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.51 (2026-07-30) - Git 자동 커밋 변경 파일 목록 기록
+
+#### 변경 사항
+- `scripts/watch_git_auto_update.ps1`: 자동 커밋 제목에 변경 파일 개수를 포함하도록 수정
+- `scripts/watch_git_auto_update.ps1`: 자동 커밋 본문에 변경 파일 목록을 최대 20개까지 기록하고, 초과 파일 수를 별도 표시
+- `scripts/watch_git_auto_update.ps1`: 자동 갱신 로그에도 커밋 대상 파일 목록을 남기도록 개선
+- `docs/GIT_WORKFLOW.md`: 태그명은 짧은 버전명으로 유지하고, 변경 파일 상세는 커밋 본문에 남기는 운영 기준 추가
+
+#### 자동 커밋 예시
+
+```text
+Auto update 2026-07-30 09:20:15 (3 files)
+
+Changed files:
+
+- backend/api/routes.py
+- frontend/js/dashboard.js
+- docs/GUIDE.md
+
+Total changed files: 3
+```
 
 ### v1.2.50 (2026-07-30) - SMTP 포트별 연결 방식 및 타임아웃 보강
 

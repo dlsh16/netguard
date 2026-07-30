@@ -67,6 +67,26 @@ function Get-StagedFiles {
     return $result.Output -split "(`r`n|`n|`r)" | Where-Object { $_ }
 }
 
+function New-CommitBody {
+    param([string[]]$Files)
+
+    $maxFiles = 20
+    $shown = @($Files | Select-Object -First $maxFiles)
+    $lines = @(
+        "Changed files:",
+        ""
+    )
+    foreach ($file in $shown) {
+        $lines += "- $file"
+    }
+    if ($Files.Count -gt $maxFiles) {
+        $lines += "- ... and $($Files.Count - $maxFiles) more file(s)"
+    }
+    $lines += ""
+    $lines += "Total changed files: $($Files.Count)"
+    return ($lines -join [Environment]::NewLine)
+}
+
 function Invoke-AutoUpdate {
     $status = Get-StatusPorcelain
     if (-not $status) {
@@ -105,14 +125,18 @@ function Invoke-AutoUpdate {
         }
     }
 
-    $message = "Auto update {0}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-    $commit = Invoke-Git @("-C", $RepoPath, "commit", "-m", $message)
+    $message = "Auto update {0} ({1} file{2})" -f (
+        Get-Date -Format "yyyy-MM-dd HH:mm:ss"),
+        $staged.Count,
+        $(if ($staged.Count -eq 1) { "" } else { "s" })
+    $body = New-CommitBody -Files $staged
+    $commit = Invoke-Git @("-C", $RepoPath, "commit", "-m", $message, "-m", $body)
     if ($commit.Code -ne 0) {
         Write-Log "git commit failed: $($commit.Output)" "ERROR"
         return
     }
 
-    Write-Log "Committed: $message"
+    Write-Log "Committed: $message; files=$($staged -join ', ')"
 
     if ($NoPush) {
         Write-Log "NoPush enabled. Skipping push."
@@ -142,4 +166,3 @@ while ($true) {
     }
     Start-Sleep -Seconds $IntervalSeconds
 }
-

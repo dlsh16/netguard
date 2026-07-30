@@ -95,6 +95,22 @@ cd E:\SNMP\SNMP_Codex
 
 The task name is `NetGuardGitAutoUpdate`. It runs at user logon and watches the repository every 60 seconds. When changes remain stable for 30 seconds, it commits and pushes them to `origin/main`.
 
+Automatic commit messages include the changed file count in the title and the changed file list in the commit body.
+
+Example:
+
+```text
+Auto update 2026-07-30 09:20:15 (3 files)
+
+Changed files:
+
+- backend/api/routes.py
+- frontend/js/dashboard.js
+- docs/GUIDE.md
+
+Total changed files: 3
+```
+
 Check watcher logs:
 
 ```powershell
@@ -123,16 +139,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\watch_git_auto_update.ps1 -No
 
 ## Before Deployment
 
-Create a release tag:
+Create a release tag. Keep tag names short and put details in the tag message or commit body:
 
 ```powershell
-git tag -a v1.2.47 -m "NetGuard v1.2.47"
+git tag -a v1.2.51 -m "NetGuard v1.2.51 - Git auto commit file list"
 ```
 
 Export source only:
 
 ```powershell
-git archive --format zip --output E:\SNMP\netguard-source-v1.2.47.zip HEAD
+git archive --format zip --output E:\SNMP\netguard-source-v1.2.51.zip HEAD
 ```
 
 Copy runtime files separately:
