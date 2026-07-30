@@ -591,6 +591,55 @@ kakao_channel_token: "채널토큰"
 
 ## 13. 업데이트 내역
 
+### v1.2.57 (2026-07-30) - Exchange SMTP raw socket 발송 우선 적용
+
+#### 현장 확인 결과
+- `nc` 및 Python raw socket으로 `mail.hlcompany.com:25`에 접속하면 `220`, `250`, `221` 응답이 정상 반환된다.
+- 동일 서버에서 Python `smtplib`만 `EHLO` 응답 수신 단계에서 타임아웃된다.
+- 따라서 SMTP 서버/방화벽/DNS 기본 연결 문제는 아니며, NetGuard의 메일 발송 계층을 raw socket 방식으로 우선 처리하도록 보정했다.
+
+#### 변경 사항
+- `backend/smtp_client.py`: 공통 SMTP 발송 모듈 신규 추가
+- `backend/smtp_client.py`: 25/587 등 일반 SMTP 포트에서 raw socket SMTP 명령(`EHLO`, `MAIL FROM`, `RCPT TO`, `DATA`, `QUIT`)을 우선 사용
+- `backend/smtp_client.py`: raw socket 발송 실패 시 기존 `smtplib` 방식으로 재시도
+- `backend/api/routes.py`: 테스트 메일 발송을 공통 SMTP 모듈로 전환
+- `backend/alerts/alert_manager.py`: 실제 이벤트 알림 메일 발송을 공통 SMTP 모듈로 전환
+
+#### 운영 서버 반영 절차
+```bash
+# 운영 서버에 변경 파일 반영 후 문법 확인
+cd /opt/netguard/backend
+sudo -u netguard /opt/netguard/venv/bin/python -m py_compile \
+  smtp_client.py \
+  api/routes.py \
+  alerts/alert_manager.py
+
+# 서비스 재시작
+sudo systemctl restart netguard
+
+# 서비스 상태 확인
+sudo systemctl status netguard --no-pager -l
+```
+
+#### 메일 발송 확인
+알림 설정에서 테스트 메일 발송을 누른 뒤 아래 로그를 확인한다.
+
+```bash
+sudo journalctl -u netguard -n 120 --no-pager | egrep -i "SMTP stage|Raw SMTP|SMTP test email failed|Email send failed|error"
+```
+
+정상 흐름 예시:
+
+```text
+SMTP stage: EHLO netguard-srv
+SMTP stage: MAIL FROM <Netguard@mandobrose.com>
+SMTP stage: RCPT TO <inho.song@mandobrose.com>
+SMTP stage: DATA
+SMTP stage: QUIT
+```
+
+`Raw SMTP send failed, retrying with smtplib` 로그가 없고 테스트 메일이 수신되면 raw socket 경로로 정상 발송된 것이다.
+
 ### v1.2.56 (2026-07-30) - 알림 레벨 설정 저장 및 테스트 메일 토스트 분리
 
 #### 변경 사항

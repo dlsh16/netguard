@@ -15,6 +15,8 @@ import yaml
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from smtp_client import describe_smtp_error as _shared_describe_smtp_error
+from smtp_client import send_smtp_message
 
 router = APIRouter()
 logger = logging.getLogger("netguard.api")
@@ -247,54 +249,11 @@ def _smtp_send_test(settings, recipient: str):
     msg["Subject"] = "[NetGuard] SMTP Test"
     msg["From"] = settings.SMTP_FROM
     msg["To"] = recipient
-    timeout = int(getattr(settings, "SMTP_TIMEOUT", 30) or 30)
-    smtp_cls = smtplib.SMTP_SSL if int(settings.SMTP_PORT) == 465 else smtplib.SMTP
-    smtp = smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout)
-    try:
-        _smtp_ehlo_upper(smtp)
-        if int(settings.SMTP_PORT) != 465 and getattr(settings, "SMTP_STARTTLS", False):
-            smtp.starttls()
-            _smtp_ehlo_upper(smtp)
-        if settings.SMTP_USER:
-            if int(settings.SMTP_PORT) != 465:
-                if not getattr(settings, "SMTP_STARTTLS", False):
-                    smtp.starttls()
-                    _smtp_ehlo_upper(smtp)
-            smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        _smtp_send_message_upper(smtp, msg, settings.SMTP_FROM, [recipient])
-    finally:
-        try:
-            smtp.docmd("QUIT")
-        except Exception:
-            smtp.close()
+    send_smtp_message(settings, msg, [recipient])
 
 
 def _describe_smtp_error(exc: Exception, host: str, port: int) -> str:
-    if isinstance(exc, socket.gaierror):
-        return (
-            f"SMTP host name resolution failed: {host}. "
-            "Check DNS, /etc/hosts, or enter the SMTP server IP address directly."
-        )
-    if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout)):
-        return (
-            f"SMTP server connection failed: {host}:{port}. "
-            "Check firewall, routing, SMTP port, and relay service status."
-        )
-    if isinstance(exc, smtplib.SMTPServerDisconnected):
-        return (
-            f"SMTP server disconnected or did not send a valid SMTP response: {host}:{port}. "
-            f"Stage/detail: {exc}. "
-            "Check the SMTP port, TLS/STARTTLS mode, relay policy, and whether the server allows this NetGuard host."
-        )
-    if isinstance(exc, smtplib.SMTPAuthenticationError):
-        return "SMTP authentication failed. Check SMTP account and password."
-    if isinstance(exc, smtplib.SMTPRecipientsRefused):
-        return "SMTP recipient was refused. Check the recipient address or relay policy."
-    if isinstance(exc, smtplib.SMTPSenderRefused):
-        return "SMTP sender was refused. Check the sender address or relay policy."
-    if isinstance(exc, smtplib.SMTPException):
-        return f"SMTP protocol error: {exc}"
-    return f"SMTP test email failed: {exc}"
+    return _shared_describe_smtp_error(exc, host, port)
 
 
 async def _ensure_device_schema(conn):

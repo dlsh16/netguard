@@ -14,36 +14,14 @@ from email.mime.text import MIMEText
 from typing import Deque, Dict, List, Optional
 
 import aiohttp
+from smtp_client import describe_smtp_error as shared_describe_smtp_error
+from smtp_client import send_smtp_message
 
 logger = logging.getLogger("netguard.alerts")
 
 
 def describe_smtp_error(exc: Exception, host: str, port: int) -> str:
-    if isinstance(exc, socket.gaierror):
-        return (
-            f"SMTP host name resolution failed: {host}. "
-            "Check DNS, /etc/hosts, or enter the SMTP server IP address directly."
-        )
-    if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout)):
-        return (
-            f"SMTP server connection failed: {host}:{port}. "
-            "Check firewall, routing, SMTP port, and relay service status."
-        )
-    if isinstance(exc, smtplib.SMTPServerDisconnected):
-        return (
-            f"SMTP server disconnected or did not send a valid SMTP response: {host}:{port}. "
-            f"Stage/detail: {exc}. "
-            "Check the SMTP port, TLS/STARTTLS mode, relay policy, and whether the server allows this NetGuard host."
-        )
-    if isinstance(exc, smtplib.SMTPAuthenticationError):
-        return "SMTP authentication failed. Check SMTP account and password."
-    if isinstance(exc, smtplib.SMTPRecipientsRefused):
-        return "SMTP recipient was refused. Check the recipient address or relay policy."
-    if isinstance(exc, smtplib.SMTPSenderRefused):
-        return "SMTP sender was refused. Check the sender address or relay policy."
-    if isinstance(exc, smtplib.SMTPException):
-        return f"SMTP protocol error: {exc}"
-    return f"SMTP send failed: {exc}"
+    return shared_describe_smtp_error(exc, host, port)
 
 
 def smtp_docmd(smtp: smtplib.SMTP, stage: str, command: str, args: Optional[str] = None):
@@ -364,26 +342,7 @@ class AlertManager:
 
     @staticmethod
     def _smtp_send(msg, s):
-        timeout = int(getattr(s, "SMTP_TIMEOUT", 30) or 30)
-        smtp_cls = smtplib.SMTP_SSL if int(s.SMTP_PORT) == 465 else smtplib.SMTP
-        smtp = smtp_cls(s.SMTP_HOST, s.SMTP_PORT, timeout=timeout)
-        try:
-            smtp_ehlo_upper(smtp)
-            if int(s.SMTP_PORT) != 465 and getattr(s, "SMTP_STARTTLS", False):
-                smtp.starttls()
-                smtp_ehlo_upper(smtp)
-            if s.SMTP_USER:
-                if int(s.SMTP_PORT) != 465:
-                    if not getattr(s, "SMTP_STARTTLS", False):
-                        smtp.starttls()
-                        smtp_ehlo_upper(smtp)
-                smtp.login(s.SMTP_USER, s.SMTP_PASSWORD)
-            smtp_send_message_upper(smtp, msg, s.SMTP_FROM, s.ALERT_EMAILS)
-        finally:
-            try:
-                smtp.docmd("QUIT")
-            except Exception:
-                smtp.close()
+        send_smtp_message(s, msg, s.ALERT_EMAILS)
 
     async def _send_kakao(self, alert: dict):
         s = self.settings
