@@ -32,6 +32,7 @@ def describe_smtp_error(exc: Exception, host: str, port: int) -> str:
     if isinstance(exc, smtplib.SMTPServerDisconnected):
         return (
             f"SMTP server disconnected or did not send a valid SMTP response: {host}:{port}. "
+            f"Stage/detail: {exc}. "
             "Check the SMTP port, TLS/STARTTLS mode, relay policy, and whether the server allows this NetGuard host."
         )
     if isinstance(exc, smtplib.SMTPAuthenticationError):
@@ -45,11 +46,24 @@ def describe_smtp_error(exc: Exception, host: str, port: int) -> str:
     return f"SMTP send failed: {exc}"
 
 
+def smtp_docmd(smtp: smtplib.SMTP, stage: str, command: str, args: Optional[str] = None):
+    try:
+        if args is None:
+            return smtp.docmd(command)
+        return smtp.docmd(command, args)
+    except smtplib.SMTPServerDisconnected as e:
+        raise smtplib.SMTPServerDisconnected(f"{stage}: {e}") from e
+    except TimeoutError as e:
+        raise smtplib.SMTPServerDisconnected(f"{stage}: timed out") from e
+
+
 def smtp_ehlo_upper(smtp: smtplib.SMTP, hostname: str = "netguard-srv"):
-    code, msg = smtp.docmd("EHLO", hostname)
+    logger.info("SMTP stage: EHLO %s", hostname)
+    code, msg = smtp_docmd(smtp, "EHLO", "EHLO", hostname)
     smtp.ehlo_resp = msg
     if code != 250:
-        code, msg = smtp.docmd("HELO", hostname)
+        logger.info("SMTP stage: HELO %s", hostname)
+        code, msg = smtp_docmd(smtp, "HELO", "HELO", hostname)
         smtp.helo_resp = msg
         if code != 250:
             raise smtplib.SMTPHeloError(code, msg)
@@ -69,14 +83,16 @@ def smtp_ehlo_upper(smtp: smtplib.SMTP, hostname: str = "netguard-srv"):
 
 
 def smtp_send_message_upper(smtp: smtplib.SMTP, msg: MIMEMultipart, sender: str, recipients: List[str]):
-    code, reply = smtp.docmd("MAIL", f"FROM:<{sender}>")
+    logger.info("SMTP stage: MAIL FROM <%s>", sender)
+    code, reply = smtp_docmd(smtp, "MAIL FROM", "MAIL", f"FROM:<{sender}>")
     if code != 250:
         raise smtplib.SMTPSenderRefused(code, reply, sender)
 
     refused = {}
     accepted = []
     for recipient in recipients:
-        code, reply = smtp.docmd("RCPT", f"TO:<{recipient}>")
+        logger.info("SMTP stage: RCPT TO <%s>", recipient)
+        code, reply = smtp_docmd(smtp, f"RCPT TO {recipient}", "RCPT", f"TO:<{recipient}>")
         if code in (250, 251):
             accepted.append(recipient)
         else:
@@ -85,7 +101,8 @@ def smtp_send_message_upper(smtp: smtplib.SMTP, msg: MIMEMultipart, sender: str,
     if not accepted:
         raise smtplib.SMTPRecipientsRefused(refused)
 
-    code, reply = smtp.docmd("DATA")
+    logger.info("SMTP stage: DATA")
+    code, reply = smtp_docmd(smtp, "DATA", "DATA")
     if code != 354:
         raise smtplib.SMTPDataError(code, reply)
 

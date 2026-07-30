@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.54 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.55 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,32 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.55 (2026-07-30) - SMTP 단계별 진단 로그 추가
+
+#### 변경 사항
+- `backend/api/routes.py`: 테스트 메일 발송 시 `EHLO`, `HELO`, `MAIL FROM`, `RCPT TO`, `DATA` 단계별 로그를 남기도록 보강
+- `backend/api/routes.py`: SMTP 서버 연결 종료/타임아웃 오류 메시지에 `Stage/detail`을 포함해 어느 SMTP 명령에서 실패했는지 표시
+- `backend/alerts/alert_manager.py`: 실제 이벤트 알림 메일 발송에도 동일한 단계별 로그와 `Stage/detail` 오류 메시지 적용
+
+#### 운영 확인
+
+테스트 메일 발송 직후 아래 명령으로 실패 단계를 확인한다.
+
+```bash
+sudo journalctl -u netguard -n 120 --no-pager | egrep -i "SMTP stage|SMTP test email failed|Email send failed"
+```
+
+예시:
+
+```text
+SMTP stage: EHLO netguard-srv
+SMTP stage: MAIL FROM <Netguard@mandobrose.com>
+SMTP stage: RCPT TO <inho.song@mandobrose.com>
+SMTP test email failed: ... Stage/detail: RCPT TO inho.song@mandobrose.com: ...
+```
+
+실패 단계가 `EHLO`이면 SMTP 명령 응답 문제, `MAIL FROM`이면 발신 주소/릴레이 정책, `RCPT TO`이면 수신자/수신 도메인 릴레이 정책, `DATA`이면 메시지 전송 정책을 확인한다.
 
 ### v1.2.54 (2026-07-30) - SMTP 발송 명령 전체 대문자 처리
 
