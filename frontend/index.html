@@ -693,10 +693,10 @@
           <div class="alert-config-card">
             <div class="section-title">알림 레벨 설정</div>
             <div class="threshold-items">
-              <div class="threshold-item checkbox-item"><label><input type="checkbox" checked /> Critical 이벤트 즉시 알림</label></div>
-              <div class="threshold-item checkbox-item"><label><input type="checkbox" checked /> High 이벤트 즉시 알림</label></div>
-              <div class="threshold-item checkbox-item"><label><input type="checkbox" /> Medium 이벤트 알림 (5분 집계)</label></div>
-              <div class="threshold-item checkbox-item"><label><input type="checkbox" /> 일일 요약 리포트 전송</label></div>
+              <div class="threshold-item checkbox-item"><label><input type="checkbox" id="alert-notify-critical" checked /> Critical 이벤트 즉시 알림</label></div>
+              <div class="threshold-item checkbox-item"><label><input type="checkbox" id="alert-notify-high" checked /> High 이벤트 즉시 알림</label></div>
+              <div class="threshold-item checkbox-item"><label><input type="checkbox" id="alert-notify-medium" /> Medium 이벤트 알림</label></div>
+              <div class="threshold-item checkbox-item"><label><input type="checkbox" id="alert-daily-report" /> 일일 요약 리포트 전송</label></div>
             </div>
             <button class="btn-primary" style="margin-top:12px" onclick="saveAlertConfig()">알림 설정 저장</button>
           </div>
@@ -890,6 +890,6 @@
     <div class="alert-panel-list" id="alert-panel-list"></div>
   </div>
 
-  <script src="js/dashboard.js?v=20260707-1"></script>
+  <script src="js/dashboard.js?v=20260730-1"></script>
 </body>
 </html>

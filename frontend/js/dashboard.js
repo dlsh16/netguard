@@ -2392,6 +2392,10 @@ async function renderAlertConfig() {
     setInputValue('alert-emails', (cfg.alert_emails || []).join(', '));
     const smtpStarttls = document.getElementById('alert-smtp-starttls');
     if (smtpStarttls) smtpStarttls.checked = !!cfg.smtp_starttls;
+    setCheckboxValue('alert-notify-critical', cfg.alert_notify_critical ?? true);
+    setCheckboxValue('alert-notify-high', cfg.alert_notify_high ?? true);
+    setCheckboxValue('alert-notify-medium', cfg.alert_notify_medium ?? false);
+    setCheckboxValue('alert-daily-report', cfg.alert_daily_report ?? false);
     setInputValue('alert-kakao-rest-key', cfg.kakao_rest_key || '');
     setInputValue('alert-kakao-channel-token', cfg.kakao_channel_token || '');
     const kakaoEnabled = document.getElementById('alert-kakao-enabled');
@@ -2407,6 +2411,11 @@ function setInputValue(id, value) {
   if (el) el.value = value ?? '';
 }
 
+function setCheckboxValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.checked = !!value;
+}
+
 function getAlertConfigPayload() {
   const emails = (document.getElementById('alert-emails')?.value || '')
     .split(',')
@@ -2420,22 +2429,28 @@ function getAlertConfigPayload() {
     smtp_from: document.getElementById('alert-smtp-from')?.value.trim() || '',
     smtp_starttls: !!document.getElementById('alert-smtp-starttls')?.checked,
     alert_emails: emails,
+    alert_notify_critical: !!document.getElementById('alert-notify-critical')?.checked,
+    alert_notify_high: !!document.getElementById('alert-notify-high')?.checked,
+    alert_notify_medium: !!document.getElementById('alert-notify-medium')?.checked,
+    alert_daily_report: !!document.getElementById('alert-daily-report')?.checked,
     kakao_enabled: !!document.getElementById('alert-kakao-enabled')?.checked,
     kakao_rest_key: document.getElementById('alert-kakao-rest-key')?.value.trim() || '',
     kakao_channel_token: document.getElementById('alert-kakao-channel-token')?.value.trim() || ''
   };
 }
 
-async function saveAlertConfig() {
+async function saveAlertConfig(options = {}) {
   try {
-    showToast('알림 설정 저장 중...');
+    if (!options.silent) showToast('알림 설정 저장 중...');
     const payload = getAlertConfigPayload();
     const res = await api('/alert-config', 'POST', payload);
     alertConfigLoaded = false;
-    if (res.persisted === false) {
-      showToast('알림 설정은 즉시 반영됐지만 파일 저장은 실패했습니다. config.yaml 권한을 확인하세요.');
-    } else {
-      showToast('알림 설정이 시스템에 반영되었습니다.');
+    if (!options.silent) {
+      if (res.persisted === false) {
+        showToast('알림 설정은 즉시 반영됐지만 파일 저장은 실패했습니다. config.yaml 권한을 확인하세요.');
+      } else {
+        showToast('알림 설정이 시스템에 반영되었습니다.');
+      }
     }
     return true;
   } catch (e) {
@@ -2451,11 +2466,11 @@ async function testEmail() {
       return;
     }
     showToast('테스트 이메일 발송 요청 중...');
-    const saved = await saveAlertConfig();
+    const saved = await saveAlertConfig({ silent: true });
     if (!saved) return;
     const firstRecipient = (document.getElementById('alert-emails')?.value || '').split(',').map(v => v.trim()).find(Boolean);
     await api('/alert-config/test-email', 'POST', { recipient: firstRecipient || null });
-    showToast('테스트 이메일 발송 완료');
+    showToast('테스트 메일이 발송되었습니다.');
   } catch (e) {
     showToast('테스트 이메일 실패: ' + e.message);
   }

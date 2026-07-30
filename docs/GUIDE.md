@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.55 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.56 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,23 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.56 (2026-07-30) - 알림 레벨 설정 저장 및 테스트 메일 토스트 분리
+
+#### 변경 사항
+- `frontend/index.html`: 알림 레벨 설정 체크박스에 고정 ID 추가
+- `frontend/js/dashboard.js`: 알림 레벨 설정을 `/api/alert-config` 조회값으로 복원하도록 수정
+- `frontend/js/dashboard.js`: 알림 레벨 설정을 저장 payload에 포함하도록 수정
+- `backend/config.py`, `backend/api/routes.py`: `alert_notify_critical`, `alert_notify_high`, `alert_notify_medium`, `alert_daily_report` 설정 저장/조회 지원
+- `backend/alerts/alert_manager.py`: Critical/High/Medium 알림 발송 여부를 저장된 알림 레벨 설정에 따라 판단
+- `frontend/js/dashboard.js`: 테스트 메일 클릭 시 내부 설정 저장은 조용히 처리하고, 발송 성공 시 `테스트 메일이 발송되었습니다.`만 표시
+- `frontend/index.html`: `dashboard.js` 캐시 버전을 `20260730-1`로 갱신
+- `config/config.example.yaml`: 알림 레벨 설정 기본값 예시 추가
+
+#### 운영 반영 후 확인
+- 알림 설정 화면에서 Critical/High/Medium/일일 리포트 체크값을 변경 후 저장한다.
+- 브라우저 새로고침 후 같은 메뉴에 다시 들어갔을 때 체크값이 유지되어야 한다.
+- 테스트 메일 버튼 클릭 시 설정 저장 성공 토스트가 아니라 테스트 메일 성공/실패 토스트만 표시되어야 한다.
 
 ### v1.2.55 (2026-07-30) - SMTP 단계별 진단 로그 추가
 

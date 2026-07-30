@@ -24,6 +24,10 @@ smtp_timeout: 30
 smtp_starttls: false
 alert_emails:
   - admin@example.local
+alert_notify_critical: true
+alert_notify_high: true
+alert_notify_medium: false
+alert_daily_report: false
 
 # KakaoTalk alerts
 kakao_enabled: false
