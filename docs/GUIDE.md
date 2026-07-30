@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.52 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.53 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,28 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.53 (2026-07-30) - SMTP 대문자 EHLO 우선 처리
+
+#### 현장 확인 결과
+- `nc`로 `EHLO netguard-srv`를 대문자로 전송하면 Exchange가 즉시 `250` 응답을 반환한다.
+- Python `smtplib` 기본 `ehlo netguard-srv`는 소문자로 전송되며, 현장 Exchange 또는 중간 보안 장비가 응답하지 않고 타임아웃된다.
+- SMTP 표준상 명령어 대소문자는 구분하지 않아야 하지만, 현장 환경의 응답 특성을 고려해 NetGuard에서 대문자 `EHLO`를 우선 전송하도록 보정한다.
+
+#### 변경 사항
+- `backend/api/routes.py`: 테스트 메일 발송 시 `smtp.docmd("EHLO", "netguard-srv")`를 먼저 사용하도록 `_smtp_ehlo_upper()` 추가
+- `backend/api/routes.py`: 대문자 `EHLO` 성공 후 `send_message()`가 소문자 `ehlo`를 다시 보내지 않도록 `smtplib` 내부 ESMTP 상태를 설정
+- `backend/alerts/alert_manager.py`: 실제 이벤트 알림 메일 발송에도 동일한 대문자 `EHLO` 처리 적용
+- `backend/alerts/alert_manager.py`: STARTTLS 이후에도 대문자 `EHLO`를 재전송하도록 수정
+
+#### 운영 반영 후 확인
+
+```bash
+sudo systemctl restart netguard
+sudo journalctl -u netguard -f --no-pager
+```
+
+웹 알림 설정에서 테스트 메일 발송 후 `SMTPServerDisconnected: timed out`가 사라지고, 다음 단계의 릴레이/발신/수신 허용 여부가 표시되어야 한다.
 
 ### v1.2.52 (2026-07-30) - SMTP STARTTLS 설정 분리
 

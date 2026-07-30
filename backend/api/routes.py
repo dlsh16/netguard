@@ -161,6 +161,29 @@ def _write_config_yaml(data: dict):
         yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
 
 
+def _smtp_ehlo_upper(smtp: smtplib.SMTP, hostname: str = "netguard-srv"):
+    code, msg = smtp.docmd("EHLO", hostname)
+    smtp.ehlo_resp = msg
+    if code != 250:
+        code, msg = smtp.docmd("HELO", hostname)
+        smtp.helo_resp = msg
+        if code != 250:
+            raise smtplib.SMTPHeloError(code, msg)
+        return code, msg
+
+    smtp.does_esmtp = True
+    smtp.esmtp_features = {}
+    text = msg.decode("latin-1", errors="replace") if isinstance(msg, bytes) else str(msg)
+    for line in text.splitlines():
+        parts = line.strip().split()
+        if not parts:
+            continue
+        feature = parts[0].lower()
+        params = " ".join(parts[1:])
+        smtp.esmtp_features[feature] = params
+    return code, msg
+
+
 def _smtp_send_test(settings, recipient: str):
     msg = MIMEText("NetGuard SMTP test mail", "plain", "utf-8")
     msg["Subject"] = "[NetGuard] SMTP Test"
@@ -169,14 +192,15 @@ def _smtp_send_test(settings, recipient: str):
     timeout = int(getattr(settings, "SMTP_TIMEOUT", 30) or 30)
     smtp_cls = smtplib.SMTP_SSL if int(settings.SMTP_PORT) == 465 else smtplib.SMTP
     with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as smtp:
+        _smtp_ehlo_upper(smtp)
         if int(settings.SMTP_PORT) != 465 and getattr(settings, "SMTP_STARTTLS", False):
             smtp.starttls()
-            smtp.ehlo()
+            _smtp_ehlo_upper(smtp)
         if settings.SMTP_USER:
             if int(settings.SMTP_PORT) != 465:
                 if not getattr(settings, "SMTP_STARTTLS", False):
                     smtp.starttls()
-                    smtp.ehlo()
+                    _smtp_ehlo_upper(smtp)
             smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         smtp.send_message(msg)
 
