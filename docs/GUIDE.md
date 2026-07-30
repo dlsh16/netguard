@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.53 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.54 | 최종 업데이트: 2026-07-30
 
 ---
 
@@ -590,6 +590,21 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.54 (2026-07-30) - SMTP 발송 명령 전체 대문자 처리
+
+#### 현장 확인 결과
+- `nc` 대문자 `EHLO`는 정상 응답하지만, Python `smtplib` 기본 소문자 `ehlo`는 타임아웃된다.
+- `EHLO`를 보정한 뒤에도 `send_message()` 내부의 `mail from`, `rcpt to`, `data` 소문자 명령에서 같은 문제가 재발할 가능성이 있다.
+
+#### 변경 사항
+- `backend/api/routes.py`: 테스트 메일 발송 시 `send_message()` 대신 대문자 `MAIL FROM`, `RCPT TO`, `DATA`, `QUIT` 명령을 직접 전송하도록 변경
+- `backend/alerts/alert_manager.py`: 실제 이벤트 알림 메일 발송도 동일하게 대문자 SMTP 명령으로 전송
+- `backend/api/routes.py`, `backend/alerts/alert_manager.py`: 발신자 거부, 수신자 거부, DATA 단계 오류는 기존 SMTP 예외로 유지해 릴레이/발신/수신 정책 문제를 구분 가능
+
+#### 운영 반영 후 기대 결과
+- 기존 `SMTPServerDisconnected: timed out`가 사라져야 한다.
+- 이후 실패가 발생하면 `Sender refused`, `Recipients refused`, `DATA` 오류 등 Exchange 릴레이 정책 단계의 구체적인 메시지가 표시된다.
 
 ### v1.2.53 (2026-07-30) - SMTP 대문자 EHLO 우선 처리
 

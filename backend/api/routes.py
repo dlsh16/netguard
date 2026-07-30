@@ -184,6 +184,40 @@ def _smtp_ehlo_upper(smtp: smtplib.SMTP, hostname: str = "netguard-srv"):
     return code, msg
 
 
+def _smtp_send_message_upper(smtp: smtplib.SMTP, msg: MIMEText, sender: str, recipients: List[str]):
+    code, reply = smtp.docmd("MAIL", f"FROM:<{sender}>")
+    if code != 250:
+        raise smtplib.SMTPSenderRefused(code, reply, sender)
+
+    refused = {}
+    accepted = []
+    for recipient in recipients:
+        code, reply = smtp.docmd("RCPT", f"TO:<{recipient}>")
+        if code in (250, 251):
+            accepted.append(recipient)
+        else:
+            refused[recipient] = (code, reply)
+
+    if not accepted:
+        raise smtplib.SMTPRecipientsRefused(refused)
+
+    code, reply = smtp.docmd("DATA")
+    if code != 354:
+        raise smtplib.SMTPDataError(code, reply)
+
+    payload = msg.as_bytes()
+    payload = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n").replace(b"\n", b"\r\n")
+    lines = payload.split(b"\r\n")
+    payload = b"\r\n".join((b"." + line if line.startswith(b".") else line) for line in lines)
+    if not payload.endswith(b"\r\n"):
+        payload += b"\r\n"
+    smtp.send(payload + b".\r\n")
+
+    code, reply = smtp.getreply()
+    if code != 250:
+        raise smtplib.SMTPDataError(code, reply)
+
+
 def _smtp_send_test(settings, recipient: str):
     msg = MIMEText("NetGuard SMTP test mail", "plain", "utf-8")
     msg["Subject"] = "[NetGuard] SMTP Test"
@@ -191,7 +225,8 @@ def _smtp_send_test(settings, recipient: str):
     msg["To"] = recipient
     timeout = int(getattr(settings, "SMTP_TIMEOUT", 30) or 30)
     smtp_cls = smtplib.SMTP_SSL if int(settings.SMTP_PORT) == 465 else smtplib.SMTP
-    with smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout) as smtp:
+    smtp = smtp_cls(settings.SMTP_HOST, settings.SMTP_PORT, timeout=timeout)
+    try:
         _smtp_ehlo_upper(smtp)
         if int(settings.SMTP_PORT) != 465 and getattr(settings, "SMTP_STARTTLS", False):
             smtp.starttls()
@@ -202,7 +237,12 @@ def _smtp_send_test(settings, recipient: str):
                     smtp.starttls()
                     _smtp_ehlo_upper(smtp)
             smtp.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-        smtp.send_message(msg)
+        _smtp_send_message_upper(smtp, msg, settings.SMTP_FROM, [recipient])
+    finally:
+        try:
+            smtp.docmd("QUIT")
+        except Exception:
+            smtp.close()
 
 
 def _describe_smtp_error(exc: Exception, host: str, port: int) -> str:

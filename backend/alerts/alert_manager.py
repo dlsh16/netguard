@@ -68,6 +68,40 @@ def smtp_ehlo_upper(smtp: smtplib.SMTP, hostname: str = "netguard-srv"):
     return code, msg
 
 
+def smtp_send_message_upper(smtp: smtplib.SMTP, msg: MIMEMultipart, sender: str, recipients: List[str]):
+    code, reply = smtp.docmd("MAIL", f"FROM:<{sender}>")
+    if code != 250:
+        raise smtplib.SMTPSenderRefused(code, reply, sender)
+
+    refused = {}
+    accepted = []
+    for recipient in recipients:
+        code, reply = smtp.docmd("RCPT", f"TO:<{recipient}>")
+        if code in (250, 251):
+            accepted.append(recipient)
+        else:
+            refused[recipient] = (code, reply)
+
+    if not accepted:
+        raise smtplib.SMTPRecipientsRefused(refused)
+
+    code, reply = smtp.docmd("DATA")
+    if code != 354:
+        raise smtplib.SMTPDataError(code, reply)
+
+    payload = msg.as_bytes()
+    payload = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n").replace(b"\n", b"\r\n")
+    lines = payload.split(b"\r\n")
+    payload = b"\r\n".join((b"." + line if line.startswith(b".") else line) for line in lines)
+    if not payload.endswith(b"\r\n"):
+        payload += b"\r\n"
+    smtp.send(payload + b".\r\n")
+
+    code, reply = smtp.getreply()
+    if code != 250:
+        raise smtplib.SMTPDataError(code, reply)
+
+
 class AlertManager:
     def __init__(self):
         from config import settings
@@ -304,7 +338,8 @@ class AlertManager:
     def _smtp_send(msg, s):
         timeout = int(getattr(s, "SMTP_TIMEOUT", 30) or 30)
         smtp_cls = smtplib.SMTP_SSL if int(s.SMTP_PORT) == 465 else smtplib.SMTP
-        with smtp_cls(s.SMTP_HOST, s.SMTP_PORT, timeout=timeout) as smtp:
+        smtp = smtp_cls(s.SMTP_HOST, s.SMTP_PORT, timeout=timeout)
+        try:
             smtp_ehlo_upper(smtp)
             if int(s.SMTP_PORT) != 465 and getattr(s, "SMTP_STARTTLS", False):
                 smtp.starttls()
@@ -315,7 +350,12 @@ class AlertManager:
                         smtp.starttls()
                         smtp_ehlo_upper(smtp)
                 smtp.login(s.SMTP_USER, s.SMTP_PASSWORD)
-            smtp.send_message(msg)
+            smtp_send_message_upper(smtp, msg, s.SMTP_FROM, s.ALERT_EMAILS)
+        finally:
+            try:
+                smtp.docmd("QUIT")
+            except Exception:
+                smtp.close()
 
     async def _send_kakao(self, alert: dict):
         s = self.settings
