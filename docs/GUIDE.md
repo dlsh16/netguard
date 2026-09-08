@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.56 | 최종 업데이트: 2026-07-30
+> 버전: 1.2.59 | 최종 업데이트: 2026-09-08
 
 ---
 
@@ -590,6 +590,107 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.59 (2026-09-08) - 동일 미해결 이벤트 알림 메일 1회 제한
+
+원인: 기존 `evaluate()`는 DB의 미해결 이벤트 중복 검사보다 먼저 메일을 발송했다. 메일 중복 방지 키에 현재 측정값이 포함되어 있었고, 메모리에서 10분만 제한하여 값 변경·시간 경과·서비스 재시작 시 같은 이벤트의 메일이 반복 발송되었다.
+
+변경 내용:
+
+- `backend/app.py`: 이벤트 DB 저장이 성공하고 신규 이벤트로 판정된 경우에만 알림 발송.
+- `backend/event_utils.py`: 동일 이벤트의 중복 검사와 생성을 PostgreSQL 트랜잭션 잠금으로 보호. 숫자 측정값과 Z-score 변화는 같은 이벤트로 처리하고, 포트 번호와 디스크 경로는 구별. 이벤트별 메일 발송 시도를 DB에 먼저 기록하여 동시 처리와 재시작에도 중복 발송 방지.
+- `backend/alerts/alert_manager.py`: 메모리의 10분 발송 제한 제거. `notification_log`에 이벤트 ID, 수신자, 발송 상태와 오류 저장.
+- `backend/api/agent_routes.py`: 에이전트 이벤트 생성에도 같은 DB 잠금 적용.
+- `backend/database.py`: 기존 `notification_log`의 수신자 필드를 TEXT로 확장. 이벤트 삭제 시 메일 이력은 유지하고 연결된 event_id만 NULL로 변경. 서비스 시작 시 자동 적용하며 장비·사용자 데이터는 유지.
+- `backend/smtp_client.py`: SMTP DATA 접수 성공 후 QUIT 연결 종료 오류가 발생해도 재전송하지 않음. DATA 결과가 불확실하면 다른 SMTP 방식으로 자동 재시도하지 않음.
+- `tests/test_event_email.py`: 반복 측정·확인 처리·재시작·동시 처리·해결 후 재발생·발송 실패·SMTP 응답 유실·DB 스키마 갱신 회귀 테스트 추가.
+
+운영 동작:
+
+| 상황 | 자동 이메일 동작 |
+|------|-----------------|
+| 새 이벤트 + 알림 레벨 허용 + SMTP/수신자 설정 완료 | 이벤트별 발송 시도 1회 |
+| 같은 이벤트가 활성(active) 또는 확인(acknowledged) 상태로 유지 | 반복 발송 안 함 |
+| 측정값 변화 / 10분 이상 경과 / 서비스 재시작 | 같은 이벤트 재발송 안 함 |
+| 패치 전부터 존재하던 미해결 이벤트 | 기존 발송 여부를 소급 판단할 수 없어 재발송 안 함 |
+| 해결(resolved) 처리 후 같은 조건 재탐지 | 새 이벤트로 생성하여 1회 발송 |
+| 이벤트 삭제 후 같은 조건 재탐지 | 새 이벤트가 될 수 있음. 재발송 억제 유지 시 삭제 대신 확인 처리 |
+| 다른 장비·다른 포트·다른 디스크·다른 이벤트 종류 | 별도 이벤트로 처리 |
+| 심각도 변경(경고→위험 등) | 기존 이벤트 구분 기준에 따라 별도 이벤트로 처리 |
+| 발송 실패 또는 SMTP 접수 결과 불확실 | 이력 기록 후 자동 반복 발송 안 함 |
+| 알림 설정의 테스트 메일 버튼 | 사용자가 누를 때마다 별도 테스트 발송 |
+
+이벤트별 자동 발송은 최대 1회 시도 정책이다. 실패한 이벤트를 주기적으로 재전송하지 않는다. SMTP `sent`는 메일 서버의 접수 응답 기준이며 최종 수신함 도착 여부는 메일 서버에서 확인한다. 프로세스 종료나 DB 결과 기록 실패로 `sending` 상태가 남은 경우에도 자동 재발송하지 않는다.
+
+#### Rocky Linux 적용
+
+`NetGuard-v1.2.59-email-once.zip`을 `/tmp/`에 반입한 뒤 아래 순서로 실행한다. 실행 전 운영 소스와 DB 백업을 확보한다. 패키지는 변경 소스/Guide/테스트만 포함하며 `config/config.yaml`, DB 파일, NVD 캐시는 포함하지 않는다.
+
+```bash
+sudo systemctl stop netguard
+sudo /opt/netguard/venv/bin/python -m zipfile -e /tmp/NetGuard-v1.2.59-email-once.zip /opt/netguard
+cd /opt/netguard/backend
+sudo -u netguard /opt/netguard/venv/bin/python -m py_compile \
+  app.py event_utils.py database.py smtp_client.py \
+  alerts/alert_manager.py api/agent_routes.py
+```
+
+문법 검사에 오류가 없으면 서비스를 시작한다. DB 스키마 갱신이 자동 실행되므로 일부 파일만 교체하지 말고 6개 백엔드 파일을 함께 적용한다.
+
+```bash
+sudo systemctl start netguard
+sudo systemctl status netguard --no-pager -l
+sudo journalctl -u netguard -n 200 --no-pager | grep -Ei 'Event email|Duplicate unresolved event|Email send failed|notification failed|schema|error'
+```
+
+#### Windows 적용
+
+관리자 PowerShell에서 실제 설치 경로와 패치 ZIP 경로를 지정한다. 중앙 NetGuard 서비스 패치이며 각 Windows 에이전트는 재설치할 필요가 없다.
+
+```powershell
+$netguardRoot = 'E:\SNMP\SNMP_Codex'
+$netguardPatch = 'E:\SNMP\NetGuard-v1.2.59-email-once.zip'
+Stop-Service -Name NetGuard
+Expand-Archive -LiteralPath $netguardPatch -DestinationPath $netguardRoot -Force
+Set-Location $netguardRoot
+& "$netguardRoot\venv\Scripts\python.exe" -m py_compile `
+  backend\app.py backend\event_utils.py backend\database.py backend\smtp_client.py `
+  backend\alerts\alert_manager.py backend\api\agent_routes.py
+if ($LASTEXITCODE -ne 0) { throw 'Python syntax check failed' }
+Start-Service -Name NetGuard
+Get-Service -Name NetGuard
+Get-Content "$netguardRoot\logs\netguard.log" -Tail 200 |
+  Select-String 'Event email|Duplicate unresolved event|Email send failed|notification failed|schema|error'
+```
+
+`NetGuard`는 설치 시 등록한 서비스명이다. 실제 서비스명 및 Python 가상환경 경로가 다른 경우 해당 값으로 실행한다.
+
+#### 발송 이력 확인
+
+Rocky Linux에서는 다음 명령으로 최근 30건을 확인한다. Windows에서는 PostgreSQL의 `psql`에서 동일한 SELECT문을 실행한다.
+
+```bash
+sudo -u postgres psql -d netguard -c "
+SELECT n.id, n.time, n.event_id, d.name AS device_name,
+       e.status AS event_status, n.status AS email_status,
+       n.recipient, n.error_msg
+FROM notification_log n
+LEFT JOIN events e ON e.id = n.event_id
+LEFT JOIN devices d ON d.id = e.device_id
+WHERE n.channel = 'email'
+ORDER BY n.id DESC LIMIT 30;"
+```
+
+| email_status | 의미 |
+|--------------|------|
+| sending | 발송 시도 기록 완료. 진행 중이거나 프로세스 중단/결과 기록 실패 가능 |
+| sent | SMTP 서버가 메일 본문을 접수함 |
+| failed | 발송 실패. error_msg 및 서비스 로그 확인 |
+| unknown | 본문 전송 후 접수 응답 유실 등으로 결과 불명. 메일 서버 추적 필요 |
+
+미해결 이벤트의 수집 로그에는 `Duplicate unresolved event skipped`가 반복될 수 있지만 메일 발송 이력은 증가하지 않아야 한다. 패치 전 발송 이력과 수동 테스트 메일은 이 이벤트별 이력에 소급 추가되지 않는다. SMTP 설정을 복구한 뒤에는 테스트 메일 버튼으로 통신을 확인한다.
+
+검증: 별도 PostgreSQL 17 테스트 인스턴스와 로컬 가상 SMTP 서버에서 회귀 테스트 13개 통과. 운영 Rocky 서버 및 실제 사내 메일 서버에서의 수신 확인은 배포 후 수행해야 한다. 테스트 실행은 별도 테스트 DB에 `NETGUARD_TEST_DSN`을 지정한 뒤 `python -m unittest discover -s tests -v`를 사용한다. 지정하지 않으면 PostgreSQL 통합 테스트 10개는 건너뛴다.
 
 ### v1.2.58 (2026-07-30) - 미해결 동일 이벤트 중복 생성 방지
 

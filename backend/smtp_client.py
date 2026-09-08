@@ -2,9 +2,9 @@
 SMTP delivery helpers for NetGuard.
 
 Some on-premise Exchange relays respond normally to raw socket SMTP commands
-but time out when Python's smtplib waits for the EHLO reply. For plain,
-unauthenticated port-25 relay delivery we use a small raw SMTP client and keep
-smtplib for SSL, STARTTLS, and authenticated sessions.
+but time out when Python's smtplib waits for the EHLO reply. Non-465 delivery
+uses raw SMTP first, including configured STARTTLS/authentication. Fallback
+must never repeat a message already accepted or with an uncertain DATA result.
 """
 import base64
 import logging
@@ -18,7 +18,13 @@ from typing import List, Optional, Sequence, Tuple
 logger = logging.getLogger("netguard.smtp")
 
 
+class SMTPDeliveryUncertain(smtplib.SMTPException):
+    """The message body may have been accepted; automatic retry is unsafe."""
+
+
 def describe_smtp_error(exc: Exception, host: str, port: int) -> str:
+    if isinstance(exc, SMTPDeliveryUncertain):
+        return f"SMTP delivery status unknown after DATA; not retried to avoid duplicate email: {exc}"
     if isinstance(exc, socket.gaierror):
         return (
             f"SMTP host name resolution failed: {host}. "
@@ -114,8 +120,14 @@ def _smtp_send_message_upper(smtp: smtplib.SMTP, msg: Message, sender: str, reci
     if code != 354:
         raise smtplib.SMTPDataError(code, reply)
 
-    smtp.send(_payload_bytes(msg) + b".\r\n")
-    code, reply = smtp.getreply()
+    payload = _payload_bytes(msg) + b".\r\n"
+    try:
+        smtp.send(payload)
+        code, reply = smtp.getreply()
+    except Exception as e:
+        raise SMTPDeliveryUncertain(f"DATA body: {e}") from e
+    if code == -1:
+        raise SMTPDeliveryUncertain(f"DATA body: invalid response {reply!r}")
     if code != 250:
         raise smtplib.SMTPDataError(code, reply)
 
@@ -206,11 +218,18 @@ def _send_raw_socket(
             raise smtplib.SMTPRecipientsRefused(refused)
 
         _raw_command(sock, "DATA", "DATA", (354,))
-        sock.sendall(_payload_bytes(msg) + b".\r\n")
-        code, reply = _read_reply(sock, "DATA body")
+        payload = _payload_bytes(msg) + b".\r\n"
+        try:
+            sock.sendall(payload)
+            code, reply = _read_reply(sock, "DATA body")
+        except Exception as e:
+            raise SMTPDeliveryUncertain(f"DATA body: {e}") from e
         if code != 250:
             raise smtplib.SMTPDataError(code, reply)
-        _raw_command(sock, "QUIT", "QUIT", (221,))
+        try:
+            _raw_command(sock, "QUIT", "QUIT", (221,))
+        except Exception as e:
+            logger.warning("SMTP QUIT failed after message accepted; not resending: %s", e)
     finally:
         try:
             sock.close()
@@ -241,6 +260,8 @@ def send_smtp_message(settings, msg: Message, recipients: Sequence[str]):
                 password=password,
             )
             return
+        except SMTPDeliveryUncertain:
+            raise
         except Exception as e:
             logger.warning("Raw SMTP send failed, retrying with smtplib: %s", e)
 

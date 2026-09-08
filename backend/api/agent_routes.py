@@ -10,7 +10,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from database import get_db_pool
-from event_utils import find_unresolved_duplicate_event
+from event_utils import save_event_once
 
 logger = logging.getLogger("netguard.agent")
 
@@ -183,27 +183,22 @@ async def _check_and_create_event(conn, device_id: int, metric: str,
     else:
         return
 
-    existing = await find_unresolved_duplicate_event(
+    row = await save_event_once(
         conn,
         device_id,
         severity,
         thr["category"],
         msg,
+        now,
     )
-    if existing:
+    if row is None:
         logger.info(
-            "[AGENT] Duplicate unresolved event skipped: existing_id=%s device=%s metric=%s",
-            existing,
+            "[AGENT] Duplicate unresolved event skipped: device=%s metric=%s",
             device_id,
             metric,
         )
         return
 
-    await conn.execute(
-        """INSERT INTO events (time, device_id, severity, category, message, status)
-           VALUES ($1, $2, $3, $4, $5, 'active')""",
-        now, device_id, severity, thr["category"], msg,
-    )
     logger.warning(f"[AGENT] Event created: device={device_id} {severity} {msg}")
 
 

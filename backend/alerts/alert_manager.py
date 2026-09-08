@@ -16,6 +16,8 @@ from typing import Deque, Dict, List, Optional
 import aiohttp
 from smtp_client import describe_smtp_error as shared_describe_smtp_error
 from smtp_client import send_smtp_message
+from smtp_client import SMTPDeliveryUncertain
+from event_utils import claim_event_email
 
 logger = logging.getLogger("netguard.alerts")
 
@@ -102,7 +104,6 @@ class AlertManager:
         from config import settings
         self.settings = settings
         self._history: Dict[str, Deque[float]] = defaultdict(lambda: deque(maxlen=60))
-        self._active_alerts: Dict[str, dict] = {}
         self._switch_port_status: Dict[str, str] = {}
         self._thresholds_loaded_at: Optional[datetime] = None
 
@@ -125,9 +126,6 @@ class AlertManager:
             alerts.extend(self._check_ups(name, metrics))
         elif dev_type in ("env", "rpi", "environment", "sensor"):
             alerts.extend(self._check_env(name, metrics))
-
-        for alert in alerts:
-            await self._dispatch(alert)
 
         return alerts
 
@@ -281,25 +279,21 @@ class AlertManager:
             "timestamp": datetime.now().isoformat(),
         }
 
-    async def _dispatch(self, alert: dict):
-        key = f"{alert['device']}.{alert['category']}.{alert['message'][:30]}"
-        existing = self._active_alerts.get(key)
-        now = datetime.now()
-
-        if existing:
-            delta = (now - datetime.fromisoformat(existing["timestamp"])).seconds
-            if delta < 600:
-                return
-
-        self._active_alerts[key] = alert
+    async def dispatch(self, alert: dict):
+        if not alert.get("id"):
+            logger.error("Alert notification skipped: persisted event id required")
+            return
         logger.warning("ALERT [%s] %s: %s", alert["severity"].upper(), alert["device"], alert["message"])
 
         if self._should_notify(alert):
-            await asyncio.gather(
+            results = await asyncio.gather(
                 self._send_email(alert),
                 self._send_kakao(alert),
                 return_exceptions=True,
             )
+            for channel, result in zip(("email", "kakao"), results):
+                if isinstance(result, Exception):
+                    logger.error("Event notification failed: event_id=%s channel=%s %s", alert["id"], channel, result)
 
     def _should_notify(self, alert: dict) -> bool:
         s = self.settings
@@ -316,6 +310,16 @@ class AlertManager:
         s = self.settings
         if not s.ALERT_EMAILS or not s.SMTP_HOST:
             return
+        from database import get_db_pool
+        pool = await get_db_pool()
+        async with pool.acquire() as conn:
+            notification_id = await claim_event_email(conn, alert["id"], ", ".join(s.ALERT_EMAILS))
+        if notification_id is None:
+            logger.info("Event email suppressed: event_id=%s already attempted or resolved", alert["id"])
+            return
+
+        logger.info("Event email claimed: event_id=%s notification_id=%s", alert["id"], notification_id)
+        state, error = "sent", None
         try:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = f"[NetGuard {alert['severity'].upper()}] {alert['device']}: {alert['message']}"
@@ -338,7 +342,19 @@ class AlertManager:
             loop = asyncio.get_event_loop()
             await loop.run_in_executor(None, self._smtp_send, msg, s)
         except Exception as e:
-            logger.error("Email send failed: %s", describe_smtp_error(e, s.SMTP_HOST, s.SMTP_PORT))
+            state = "unknown" if isinstance(e, SMTPDeliveryUncertain) else "failed"
+            error = describe_smtp_error(e, s.SMTP_HOST, s.SMTP_PORT)
+            logger.error("Email send failed: event_id=%s state=%s %s", alert["id"], state, error)
+        else:
+            logger.info("Event email sent: event_id=%s notification_id=%s", alert["id"], notification_id)
+
+        # Keep the committed 'sending' claim if this update or the process fails.
+        # Retrying an uncertain delivery could send the same email twice.
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE notification_log SET status=$2, error_msg=$3 WHERE id=$1",
+                notification_id, state, error,
+            )
 
     @staticmethod
     def _smtp_send(msg, s):

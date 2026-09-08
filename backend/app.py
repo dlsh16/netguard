@@ -23,7 +23,7 @@ from api.agent_routes import get_agent_live_ips, get_agent_live_results, router 
 from alerts.alert_manager import AlertManager
 from security.cve_checker import CVEChecker
 from database import get_db_pool, close_db_pool, init_db
-from event_utils import find_unresolved_duplicate_event
+from event_utils import save_event_once
 
 LOG_DIR = Path(os.environ.get("NETGUARD_LOG_DIR", Path(__file__).parent.parent / "logs"))
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -177,6 +177,8 @@ async def collection_loop():
                     if alerts:
                         saved = await _save_events(pool, devices, alerts)
                         all_alerts.extend(saved)
+                        for alert in saved:
+                            await alert_manager.dispatch(alert)
                 except Exception as e:
                     logger.error(
                         f"Alert evaluation failed for {device_data.get('device')}: {e}",
@@ -344,28 +346,21 @@ async def _save_events(pool, devices: list, alerts: list) -> list:
             device = device_by_name.get(alert['device'])
             device_id = device['id'] if device else None
             try:
-                duplicate_id = await find_unresolved_duplicate_event(
+                row = await save_event_once(
                     conn,
                     device_id,
                     alert['severity'],
                     alert['category'],
                     alert['message'],
                 )
-                if duplicate_id:
+                if row is None:
                     logger.info(
-                        "Duplicate unresolved event skipped: existing_id=%s device=%s category=%s message=%s",
-                        duplicate_id,
+                        "Duplicate unresolved event skipped: device=%s category=%s message=%s",
                         alert['device'],
                         alert['category'],
                         alert['message'],
                     )
                     continue
-                row = await conn.fetchrow("""
-                    INSERT INTO events (time, device_id, severity, category, message, status)
-                    VALUES (NOW(), $1, $2, $3, $4, 'active')
-                    RETURNING id, time
-                """, device_id,
-                    alert['severity'], alert['category'], alert['message'])
                 saved.append({
                     **alert,
                     'id': row['id'],

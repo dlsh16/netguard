@@ -254,12 +254,26 @@ async def _init_db_locked(conn):
             id          SERIAL PRIMARY KEY,
             time        TIMESTAMPTZ DEFAULT NOW(),
             channel     VARCHAR(20),  -- email/kakao
-            recipient   VARCHAR(200),
-            event_id    INTEGER REFERENCES events(id),
+            recipient   TEXT,
+            event_id    INTEGER REFERENCES events(id) ON DELETE SET NULL,
             status      VARCHAR(20),
             error_msg   TEXT
         );
     """)
+
+    # Preserve delivery history when an event is deleted from the UI.
+    async with conn.transaction():
+        await conn.execute("ALTER TABLE notification_log ALTER COLUMN recipient TYPE TEXT")
+        await conn.execute("""
+            ALTER TABLE notification_log
+            DROP CONSTRAINT IF EXISTS notification_log_event_id_fkey,
+            ADD CONSTRAINT notification_log_event_id_fkey
+                FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_notification_log_event_channel
+            ON notification_log(event_id, channel)
+        """)
 
     # --- Alert rules ---
     await conn.execute("""
