@@ -2,6 +2,7 @@
 REST API routes for NetGuard dashboard.
 """
 import base64
+import asyncio
 import logging
 import os
 import socket
@@ -557,41 +558,63 @@ async def delete_event(event_id: int):
 
 
 # ===== SECURITY =====
-@router.get("/security/cves", summary="CVE summary across all devices")
-async def get_cves():
-    from app import cve_checker
+async def _security_inventory():
     from database import get_db_pool
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        rows = await conn.fetch("SELECT name, os_version FROM devices WHERE enabled=TRUE")
+        rows = await conn.fetch("SELECT id, name, ip_address, type, os_version, location FROM devices WHERE enabled=TRUE")
         completed_rows = await conn.fetch("SELECT cve_id FROM cve_completions")
-    devices = [dict(r) for r in rows]
-    completed_cve_ids = {r["cve_id"] for r in completed_rows}
+    return [dict(r) for r in rows], {r["cve_id"] for r in completed_rows}
+
+
+@router.get("/security/search", summary="Search local CVEs and associated assets")
+async def search_security(
+    q: str = Query("", max_length=500), scope: str = "affected", view: str = "assets",
+    severity: str = "", device_type: str = "", asset_id: Optional[int] = None,
+    status: str = "open", min_cvss: float = Query(0, ge=0, le=10),
+    max_cvss: float = Query(10, ge=0, le=10), sort: str = "score",
+    page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
+):
+    from app import cve_checker
+    if cve_checker is None:
+        raise HTTPException(503, "취약점 검색 엔진이 준비되지 않았습니다.")
+    devices, completed = await _security_inventory()
+    try:
+        return await asyncio.to_thread(
+            cve_checker.search, devices, completed, q=q, scope=scope, view=view,
+            severity=severity, device_type=device_type, asset_id=asset_id, status=status,
+            min_cvss=min_cvss, max_cvss=max_cvss, sort=sort, page=page, page_size=page_size,
+        )
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@router.get("/security/cves", summary="CVE summary across all devices")
+async def get_cves():
+    from app import cve_checker
+    devices, completed_cve_ids = await _security_inventory()
     if cve_checker:
-        return cve_checker.get_summary(devices, completed_cve_ids)
+        return await asyncio.to_thread(cve_checker.get_summary, devices, completed_cve_ids)
     return {"total": 0, "counts": {}, "items": []}
 
 
 @router.get("/security/cves/{cve_id}", summary="CVE detail")
 async def get_cve_detail(cve_id: str):
     from app import cve_checker
-    if not cve_checker or not cve_checker._loaded:
-        raise HTTPException(404, "CVE DB not loaded")
-    items = [c for c in cve_checker._cve_db if c['id'] == cve_id]
-    if not items:
+    if not cve_checker:
+        raise HTTPException(503, "취약점 검색 엔진이 준비되지 않았습니다.")
+    devices, completed = await _security_inventory()
+    item = await asyncio.to_thread(cve_checker.get_detail, cve_id, devices, completed)
+    if not item:
         raise HTTPException(404, f"{cve_id} not found")
-    item = items[0]
-    return {
-        **item,
-        "cve_id": item.get("id"),
-        "cvss": item.get("score"),
-        "description": item.get("desc"),
-    }
+    return {**item, 'id': item['cve_id'], 'score': item['cvss'], 'desc': item['description']}
 
 
 @router.post("/security/cves/{cve_id}/complete", summary="Mark CVE as completed")
 async def complete_cve(cve_id: str, request: Request):
     _require_admin(request)
+    detail = await get_cve_detail(cve_id)
+    cve_id = detail['cve_id']
     from database import get_db_pool
 
     pool = await get_db_pool()
@@ -603,6 +626,17 @@ async def complete_cve(cve_id: str, request: Request):
             SET completed_at = NOW()
         """, cve_id)
     return {"status": "ok", "cve_id": cve_id}
+
+
+@router.delete("/security/cves/{cve_id}/complete", summary="Reopen a completed CVE")
+async def reopen_cve(cve_id: str, request: Request):
+    _require_admin(request)
+    detail = await get_cve_detail(cve_id)
+    from database import get_db_pool
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        await conn.execute("DELETE FROM cve_completions WHERE cve_id=$1", detail['cve_id'])
+    return {"status": "ok", "cve_id": detail['cve_id']}
 
 
 # ===== SCRIPT CHECK RESULTS =====

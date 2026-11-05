@@ -1,0 +1,161 @@
+/* Offline asset / vulnerability search, scoped to the security workspace. */
+#page-security { --vs-bg: #141619; --vs-panel: #1a1c20; --vs-border: #303238; --vs-muted: #9b9da5; color: #e7e8eb; letter-spacing: 0; }
+#page-security *, .vs-dialog * { letter-spacing: 0; }
+body:has(#page-security.active) .alert-panel:not(.open) { display: none; }
+.vs-mobile-tools { display: none; }
+#page-security [hidden], .vs-dialog [hidden] { display: none !important; }
+#page-security h1 { font-size: 24px; line-height: 1.4; font-weight: 650; margin: 5px 0 0; }
+.vs-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 6px 0 22px; }
+.vs-eyebrow { font-size: 10px; color: #9b9da5; }
+.vs-source { text-align: right; color: #9b9da5; font-size: 11px; display: grid; gap: 6px; }
+.vs-source-label { display: flex; align-items: center; justify-content: flex-end; gap: 6px; color: #6fc6ad; font-weight: 600; }
+#page-security svg, .vs-dialog svg { width: 16px; height: 16px; flex: none; }
+.vs-search-form { display: flex; align-items: center; gap: 12px; border: 1px solid #454851; border-radius: 6px; background: var(--vs-bg); padding: 8px 10px 8px 16px; }
+.vs-search-form:focus-within { border-color: #75aeff; box-shadow: 0 0 0 2px #75aeff20; }
+.vs-search-form > svg { width: 20px !important; height: 20px !important; color: #9b9da5; }
+.vs-search-form input { flex: 1; min-width: 0; background: transparent; color: #f4f4f5; border: none; outline: none; font: inherit; font-size: 14px; height: 32px; }
+.vs-search-form input::placeholder { color: #858892; }
+.vs-search-form .btn-primary { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; padding: 8px 18px; border-radius: 4px; }
+.vs-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; min-width: 32px; height: 32px; border: 1px solid transparent; border-radius: 4px; background: transparent; color: #abafb8; cursor: pointer; }
+.vs-icon-button:hover { background: #2a2d33; color: #fff; border-color: #41444e; }
+.vs-icon-button:disabled { opacity: 0.35; cursor: default; }
+#page-security button:focus-visible, .vs-dialog button:focus-visible { outline: 2px solid #84b5ff; outline-offset: 2px; }
+.vs-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border-bottom: 1px solid var(--vs-border); padding: 24px 0; margin-bottom: 22px; }
+.vs-metrics > div { display: grid; gap: 8px; padding: 0 20px; border-left: 1px solid var(--vs-border); }
+.vs-metrics > div:first-child { padding-left: 0; border-left: 0; }
+.vs-metrics span { color: #9b9da5; font-size: 11px; }
+.vs-metrics strong { font-size: 25px; line-height: 1.1; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.vs-critical strong { color: #f08080; } .vs-high strong { color: #e8af70; }
+.vs-workspace { display: grid; grid-template-columns: 196px minmax(0, 1fr); gap: 24px; }
+.vs-filters { border-right: 1px solid var(--vs-border); padding-right: 22px; }
+.vs-section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.vs-section-title h2 { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; }
+.vs-filters > label, .vs-filters legend { display: block; color: #c3c4ca; font-size: 11px; margin-bottom: 8px; }
+#page-security select, .vs-score-range input { background: #191b1f; border: 1px solid #383b43; border-radius: 4px; color: #d5d7de; font-family: inherit; font-size: 12px; padding: 7px 9px; min-height: 33px; color-scheme: dark; }
+.vs-filters > select { width: 100%; margin-bottom: 21px; }
+.vs-severities { border: none; margin: 0 0 24px; padding: 0; }
+.vs-severities label { display: flex; align-items: center; gap: 8px; padding: 7px 0; color: #b9bbc4; cursor: pointer; font-size: 12px; }
+.vs-severities input { width: 14px; height: 14px; accent-color: #639bfa; }
+.vs-severities [data-vs-count] { margin-left: auto; font-variant-numeric: tabular-nums; font-size: 11px; color: #8c8f9a; }
+.vs-dot { display: inline-block; width: 7px; height: 7px; border-radius: 2px; }
+.vs-dot.critical, .vs-severity-bar .critical { background: #e77579; }
+.vs-dot.high, .vs-severity-bar .high { background: #dd9e64; }
+.vs-dot.medium, .vs-severity-bar .medium { background: #d8c26a; }
+.vs-dot.low, .vs-severity-bar .low { background: #66b49a; }
+.vs-dot.none, .vs-severity-bar .none { background: #808492; }
+.vs-score-range { display: grid; grid-template-columns: minmax(0, 1fr) 12px minmax(0, 1fr); gap: 4px; align-items: center; margin-bottom: 21px; }
+.vs-score-range input { width: 100%; min-width: 0; }
+.vs-score-range span { color: #808492; text-align: center; }
+.vs-inventory { display: flex; align-items: center; gap: 7px; color: #9b9da5; font-size: 11px; padding-top: 18px; border-top: 1px solid var(--vs-border); }
+.vs-inventory strong { color: #d5d7de; margin-left: auto; }
+.vs-results { min-width: 0; }
+.vs-results[aria-busy="true"] #vs-result-list { opacity: 0.45; pointer-events: none; }
+.vs-results-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--vs-border); }
+.vs-tabs { display: flex; gap: 20px; }
+.vs-tabs button { display: flex; align-items: center; gap: 7px; border: 0; border-bottom: 2px solid transparent; padding: 12px 2px 14px; cursor: pointer; background: none; color: #9b9da5; font: inherit; font-weight: 600; }
+.vs-tabs button[aria-selected="true"] { color: #f1f2f4; border-color: #6da5fa; }
+.vs-result-options { display: flex; align-items: center; gap: 8px; }
+.vs-result-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 0; font-size: 11px; color: #aeb0ba; }
+.vs-candidate-label { display: inline-flex; align-items: center; gap: 5px; color: #a3a6b1; font-size: 10px; }
+.vs-candidate-label svg { width: 13px !important; height: 13px !important; }
+.vs-table-scroll { overflow-x: auto; }
+.vs-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; }
+.vs-table th { padding: 10px 12px; font-size: 10px; font-weight: 500; color: #a3a6b1; border-bottom: 1px solid var(--vs-border); background: #1a1c20; white-space: nowrap; }
+.vs-table td { padding: 17px 12px; vertical-align: middle; border-bottom: 1px solid #292b32; }
+.vs-table tr:hover td { background: #ffffff03; }
+.vs-asset-table { min-width: 680px; }
+.vs-asset-table th:nth-child(1) { width: 25%; }
+.vs-asset-table th:nth-child(2) { width: 30%; }
+.vs-asset-table th:nth-child(4) { width: 20%; }
+.vs-cve-table { min-width: 880px; table-layout: fixed; }
+.vs-cve-table th:nth-child(1) { width: 17%; } .vs-cve-table th:nth-child(2) { width: 12%; }
+.vs-cve-table th:nth-child(3) { width: 31%; } .vs-cve-table th:nth-child(4) { width: 20%; }
+.vs-cve-table th:nth-child(5) { width: 10%; } .vs-cve-table th:nth-child(6) { width: 10%; }
+.vs-link { color: #8db7f3; border: 0; padding: 0; background: none; text-align: left; cursor: pointer; font: inherit; font-weight: 600; overflow-wrap: anywhere; }
+.vs-link:hover { text-decoration: underline; color: #bfdbfe; }
+.vs-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11px; }
+.vs-asset-identity { display: flex; align-items: center; gap: 12px; }
+.vs-asset-identity > svg { color: #80aab2; width: 20px !important; height: 20px !important; }
+.vs-asset-identity > div { display: grid; gap: 6px; }
+.vs-asset-identity .vs-mono { color: #9b9da5; }
+.vs-secondary { color: #989ba6; font-size: 10px; line-height: 1.5; }
+.vs-os { margin-top: 5px; max-width: 260px; overflow-wrap: anywhere; color: #c2c4cc; font-size: 11px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.vs-score { display: inline-block; min-width: 42px; text-align: center; border-radius: 4px; padding: 6px; font: 600 13px var(--mono); }
+.vs-score.critical, .vs-badge.critical { color: #f09b9f; background: #e775791c; }
+.vs-score.high, .vs-badge.high { color: #ebbb89; background: #dd9e641c; }
+.vs-score.medium, .vs-badge.medium { color: #dfd08e; background: #d8c26a1c; }
+.vs-score.low, .vs-badge.low { color: #88ccb4; background: #66b49a1c; }
+.vs-badge.none { color: #b0b3be; background: #80849220; }
+.vs-severity-bar { display: flex; width: 116px; max-width: 100%; height: 6px; gap: 2px; overflow: hidden; border-radius: 2px; }
+.vs-bar-label { font-size: 9px; color: #8f929e; margin-top: 7px; white-space: nowrap; }
+.vs-badge { font-size: 9px; padding: 4px 6px; border-radius: 3px; display: inline-block; font-weight: 600; }
+.vs-cve-score { margin-top: 7px; font-size: 10px; color: #a3a6b1; } .vs-cve-score strong { color: #e1e2e7; margin-left: 5px; }
+.vs-products { font-weight: 600; font-size: 11px; color: #d6d8df; overflow-wrap: anywhere; }
+.vs-description { font-size: 11px; line-height: 1.6; color: #9b9da5; margin: 5px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.vs-target { display: grid; gap: 3px; margin: 5px 0; font-size: 10px; overflow-wrap: anywhere; }.vs-target .vs-mono { font-size: 10px; color: #9296a1; }
+.vs-row-actions { display: flex; gap: 2px; flex-wrap: wrap; }
+.vs-status { font-size: 10px; color: #c4b176; white-space: nowrap; } .vs-status.done { color: #75c4a4; }
+.vs-pagination { display: flex; align-items: center; justify-content: space-between; padding: 16px 0; gap: 12px; font-size: 11px; color: #9b9da5; }
+.vs-pagination > div, .vs-pagination label { display: flex; align-items: center; gap: 9px; }
+#vs-page-label { min-width: 55px; text-align: center; font-variant-numeric: tabular-nums; }
+.vs-message { margin: 12px 0; padding: 12px 14px; background: #d6a3450d; border-left: 2px solid #c1a869; color: #d6c59a; font-size: 12px; overflow-wrap: anywhere; }
+.vs-error { color: #f2a3a7; } .vs-message.vs-error { background: #ef44440d; border-color: #df848a; }
+.vs-empty { min-height: 260px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 12px; color: #b5b8c0; }
+.vs-empty > svg { width: 30px !important; height: 30px !important; color: #737885; }
+.vs-empty > span { color: #9095a1; font-size: 11px; }
+.vs-asset-chip { margin-top: 14px; border: 1px solid #4b5b73; border-radius: 4px; background: #273449; color: #c2d5f2; padding: 6px 8px; display: inline-flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer; }
+.vs-distributions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; border-bottom: 1px solid var(--vs-border); padding: 20px 0; }
+.vs-distributions h3 { font-size: 11px; font-weight: 500; color: #aaaeb7; margin-bottom: 10px; }
+.vs-chart { height: 170px; position: relative; }
+.vs-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.vs-dialog { margin: auto; padding: 0; background: #191b20; color: #e5e7eb; border: 1px solid #44474f; border-radius: 8px; width: min(900px, calc(100vw - 32px)); max-width: none; max-height: calc(100dvh - 40px); box-shadow: 0 24px 80px #0008; }
+.vs-dialog[open] { display: flex; flex-direction: column; }
+.vs-dialog::backdrop { background: #000a; }
+.vs-dialog > header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #33363f; gap: 12px; flex: none; }
+.vs-dialog h2 { font-size: 18px; margin-top: 5px; overflow-wrap: anywhere; }
+.vs-dialog-body { padding: 20px 24px; overflow-y: auto; min-height: 0; line-height: 1.6; }
+.vs-dialog > footer { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding: 12px 24px; border-top: 1px solid #33363f; flex: none; }
+.vs-dialog > footer > span { margin-right: auto; }
+.vs-detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding-bottom: 20px; }
+.vs-detail-facts dt { font-size: 10px; color: #9499a5; }.vs-detail-facts dd { font-size: 13px; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
+.vs-dialog section { padding: 18px 0; border-top: 1px solid #30333b; }
+.vs-dialog h3 { font-size: 12px; margin-bottom: 12px; font-weight: 600; }
+.vs-dialog h3 > span { margin-left: 6px; color: #7ca8d6; }
+.vs-detail-description { font-size: 12px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; color: #bec2cc; }
+.vs-dialog code { font: 11px var(--mono); color: #9dc7d2; overflow-wrap: anywhere; }
+.vs-detail-asset { display: grid; grid-template-columns: minmax(0, 1fr) 140px; padding: 12px 0; border-bottom: 1px solid #2c2f37; gap: 5px 12px; font-size: 12px; overflow-wrap: anywhere; }
+.vs-detail-asset > span:nth-of-type(2), .vs-detail-asset > small { grid-column: 1 / -1; color: #9b9da5; font-size: 11px; }
+.vs-detail-asset > small { color: #c6b781; }
+.vs-cpe { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid #2c2f37; } .vs-cpe > span { font-size: 11px; color: #bdc0ca; }
+.vs-references { padding-left: 18px; font-size: 11px; } .vs-references a { color: #8db7f3; overflow-wrap: anywhere; }
+.vs-action-dialog { width: min(460px, calc(100vw - 32px)); }.vs-action-dialog h2 { font-size: 16px; }.vs-action-dialog p { font-size: 13px; }
+@media (max-width: 1100px) {
+  .vs-workspace { grid-template-columns: 168px minmax(0, 1fr); gap: 16px; } .vs-filters { padding-right: 14px; }
+  .vs-metrics > div { padding: 0 12px; } .vs-metrics strong { font-size: 22px; }
+}
+@media (max-width: 700px) {
+  body:has(#page-security.active) .sidebar { width: 52px; min-width: 52px; transition: none; }
+  body:has(#page-security.active) .topbar { padding: 0 8px; gap: 6px; }
+  body:has(#page-security.active) .topbar-title { font-size: 12px; overflow-wrap: anywhere; }
+  body:has(#page-security.active) .topbar-right { gap: 6px; }
+  body:has(#page-security.active) .refresh-info { display: none; }
+  body:has(#page-security.active) .main-wrapper { min-width: 0; }
+  body:has(#page-security.active) .alert-panel { width: min(380px, calc(100vw - 52px)); }
+  body:has(#page-security.active) .sidebar .nav-label, body:has(#page-security.active) .sidebar .nav-badge, body:has(#page-security.active) .sidebar .logo-text, body:has(#page-security.active) .sidebar .sidebar-section-label, body:has(#page-security.active) .sidebar .user-info { display: none; }
+  body:has(#page-security.active) .sidebar-bottom { padding: 12px 6px; } body:has(#page-security.active) .sidebar-user { flex-wrap: wrap; }
+  body:has(#page-security.active) .page-container { padding: 12px; }
+  .vs-heading { flex-wrap: wrap; gap: 12px; padding-bottom: 16px; }.vs-source { text-align: left; }.vs-source-label { justify-content: flex-start; }
+  .vs-search-form { gap: 5px; padding-left: 8px; }.vs-search-form > svg { display: none; }.vs-search-form input { font-size: 12px; }.vs-search-form .btn-primary { min-width: 34px; padding: 8px; font-size: 12px; }.vs-search-form .btn-primary svg { display: none; }
+  .vs-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 0; padding: 20px 0; }.vs-metrics > div { padding: 0 9px; }.vs-metrics > div:nth-child(4) { padding-left: 0; border-left: 0; }.vs-metrics strong { font-size: 21px; }
+  .vs-mobile-tools { display: flex; justify-content: flex-end; margin-bottom: 8px; }.vs-mobile-tools button { display: flex; align-items: center; gap: 6px; }
+  .vs-workspace { display: flex; flex-direction: column; gap: 18px; }.vs-filters { display: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 12px; border-right: 0; border-bottom: 1px solid var(--vs-border); padding: 0 0 16px; }.vs-workspace.filters-open .vs-filters { display: grid; }
+  .vs-section-title, .vs-severities, .vs-inventory { grid-column: 1 / -1; }.vs-section-title { margin: 0; }.vs-filters > label { align-self: center; margin: 0; }.vs-filters > select, .vs-score-range { margin: 0; }.vs-severities { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 7px 0; }.vs-severities legend { margin-bottom: 3px; }.vs-severities [data-vs-count] { display: none; }.vs-inventory { padding-top: 10px; margin-top: 6px; }
+  .vs-results-toolbar { flex-wrap: wrap; }.vs-result-options { padding-bottom: 8px; }.vs-result-meta { flex-wrap: wrap; }.vs-distributions { grid-template-columns: 1fr; }
+  .vs-dialog > header, .vs-dialog-body, .vs-dialog > footer { padding: 14px; }.vs-detail-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }.vs-detail-asset { grid-template-columns: minmax(0, 1fr); }.vs-dialog h2 { font-size: 16px; }
+  .vs-asset-table { min-width: 0; }.vs-asset-table thead { display: none; }.vs-asset-table tbody { display: block; }
+  .vs-asset-table tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 18px 0; border-bottom: 1px solid #303238; position: relative; }
+  .vs-asset-table td { padding: 0; border: 0; }.vs-asset-table td:nth-child(1), .vs-asset-table td:nth-child(2) { grid-column: 1 / -1; padding-right: 34px; }
+  .vs-asset-table td:nth-child(3)::before { content: '최고 CVSS'; margin-right: 6px; color: #9b9da5; font-size: 10px; }
+  .vs-asset-table td:nth-child(5)::before { content: 'CVE 후보 '; color: #9b9da5; font-size: 10px; }
+  .vs-asset-table td:nth-child(6) { position: absolute; right: 0; top: 16px; }
+}

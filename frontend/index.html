@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SNMP 통합 모니터링 대시보드</title>
   <link rel="stylesheet" href="css/style.css?v=20260616-1" />
+  <link rel="stylesheet" href="css/security-search.css?v=20261105-1" />
   <script src="js/chart.umd.min.js"></script>
   <script>
     // Auth guard — redirect to login if no token
@@ -439,35 +440,58 @@
 
       <!-- ===== SECURITY PAGE ===== -->
       <div class="page" id="page-security">
-        <div class="security-header">
-          <div class="cve-summary">
-            <div class="cve-stat critical"><div class="cve-count" id="cve-count-critical">--</div><div class="cve-label">Critical</div></div>
-            <div class="cve-stat high"><div class="cve-count" id="cve-count-high">--</div><div class="cve-label">High</div></div>
-            <div class="cve-stat medium"><div class="cve-count" id="cve-count-medium">--</div><div class="cve-label">Medium</div></div>
-            <div class="cve-stat low"><div class="cve-count" id="cve-count-low">--</div><div class="cve-label">Low</div></div>
-          </div>
-          <div class="cve-update-info">
-            <span>NVD 데이터베이스 마지막 업데이트: <span id="nvd-update-date">--</span></span>
-            <button class="btn-sm" onclick="updateNVD()">로컬 DB 업데이트</button>
-          </div>
+        <header class="vs-heading">
+          <div><span class="vs-eyebrow">SECURITY / LOCAL INTELLIGENCE</span><h1>취약점 검색</h1></div>
+          <div class="vs-source"><span class="vs-source-label"><i data-lucide="database"></i> 로컬 NVD</span><span id="vs-updated">마지막 업데이트 확인 중</span></div>
+        </header>
+        <form id="vs-search-form" class="vs-search-form" role="search">
+          <i data-lucide="search" aria-hidden="true"></i>
+          <input id="vs-query" type="search" maxlength="500" aria-label="취약점 검색어" placeholder="IP, 장비명, CVE, CWE, 제품명" autocomplete="off" />
+          <button type="submit" class="btn-primary"><i data-lucide="search"></i>검색</button>
+          <button type="button" id="vs-refresh" class="vs-icon-button" aria-label="검색 결과 새로고침" title="검색 결과 새로고침"><i data-lucide="refresh-cw"></i></button>
+        </form>
+        <div class="vs-metrics" aria-label="검색 결과 요약">
+          <div><span>검색된 CVE</span><strong id="vs-total-cves">--</strong></div>
+          <div><span>영향 후보 자산</span><strong id="vs-total-assets">--</strong></div>
+          <div class="vs-critical"><span>Critical</span><strong id="vs-total-critical">--</strong></div>
+          <div class="vs-high"><span>High</span><strong id="vs-total-high">--</strong></div>
+          <div><span>로컬 NVD 항목</span><strong id="vs-catalog-total">--</strong></div>
         </div>
-        <div class="charts-row security-charts-row">
-          <div class="chart-card">
-            <div class="card-header"><span class="card-title">CVSS 점수 분포</span></div>
-            <canvas id="cvss-chart" height="160"></canvas>
-          </div>
-          <div class="chart-card affected-chart-card">
-            <div class="card-header"><span class="card-title">취약점 영향 장비 분포</span></div>
-            <canvas id="affected-chart" height="160"></canvas>
-          </div>
+        <div id="vs-error" class="vs-message vs-error" role="alert" hidden></div>
+        <div id="vs-source-warning" class="vs-message" role="status" hidden></div>
+        <div class="vs-mobile-tools"><button class="btn-secondary" id="vs-filter-toggle" aria-expanded="false" aria-controls="vs-filter-sidebar"><i data-lucide="list-filter"></i>필터</button></div>
+        <div class="vs-workspace">
+          <aside class="vs-filters" id="vs-filter-sidebar" aria-label="검색 필터">
+            <div class="vs-section-title"><h2><i data-lucide="list-filter"></i> 검색 필터</h2><button id="vs-reset" class="vs-icon-button" title="검색 조건 초기화" aria-label="검색 조건 초기화"><i data-lucide="rotate-ccw"></i></button></div>
+            <label for="vs-scope">검색 범위</label>
+            <select id="vs-scope"><option value="affected">등록 자산 연관</option><option value="catalog">로컬 NVD 전체</option></select>
+            <fieldset class="vs-severities"><legend>심각도</legend>
+              <label><input type="checkbox" value="CRITICAL" /><span class="vs-dot critical"></span>Critical<span data-vs-count="CRITICAL">0</span></label>
+              <label><input type="checkbox" value="HIGH" /><span class="vs-dot high"></span>High<span data-vs-count="HIGH">0</span></label>
+              <label><input type="checkbox" value="MEDIUM" /><span class="vs-dot medium"></span>Medium<span data-vs-count="MEDIUM">0</span></label>
+              <label><input type="checkbox" value="LOW" /><span class="vs-dot low"></span>Low<span data-vs-count="LOW">0</span></label>
+              <label><input type="checkbox" value="NONE" /><span class="vs-dot none"></span>미평가<span data-vs-count="NONE">0</span></label>
+            </fieldset>
+            <label for="vs-type">장비 유형</label><select id="vs-type"><option value="">전체 유형</option><option value="server">서버</option><option value="switch">스위치</option><option value="env">항온항습기</option><option value="ups">UPS</option><option value="rpi">라즈베리파이</option></select>
+            <label>CVSS 점수</label><div class="vs-score-range"><input id="vs-min" type="number" min="0" max="10" step="0.1" value="0" aria-label="최소 CVSS" /><span>~</span><input id="vs-max" type="number" min="0" max="10" step="0.1" value="10" aria-label="최대 CVSS" /></div>
+            <label for="vs-status">조치 상태</label><select id="vs-status"><option value="open">미조치</option><option value="completed">패치 완료</option><option value="all">전체</option></select>
+            <div class="vs-inventory"><i data-lucide="server"></i>등록 자산 <strong id="vs-registered">--</strong></div>
+          </aside>
+          <section class="vs-results" aria-label="검색 결과" aria-busy="false">
+            <div class="vs-results-toolbar">
+              <div class="vs-tabs" role="tablist" aria-label="결과 보기">
+                <button id="vs-assets-tab" role="tab" aria-selected="true" data-view="assets"><i data-lucide="network"></i>자산</button>
+                <button id="vs-cves-tab" role="tab" aria-selected="false" data-view="cves"><i data-lucide="shield-alert"></i>취약점</button>
+              </div>
+              <div class="vs-result-options"><label for="vs-sort" class="vs-sr-only">결과 정렬</label><select id="vs-sort"><option value="score">CVSS 높은 순</option><option value="newest">공개일 최신순</option><option value="id">CVE ID 순</option><option value="name">장비명 순</option></select><button id="vs-distribution-toggle" class="vs-icon-button" title="분포 보기" aria-label="분포 보기" aria-expanded="false"><i data-lucide="chart-column"></i></button></div>
+            </div>
+            <div id="vs-active-asset" hidden></div>
+            <div id="vs-distributions" class="vs-distributions" hidden><div><h3>CVSS 점수 분포</h3><div class="vs-chart"><canvas id="vs-cvss-chart" aria-label="CVSS 점수 분포"></canvas></div></div><div><h3>영향 후보 자산 분포</h3><div class="vs-chart"><canvas id="vs-assets-chart" aria-label="영향 후보 자산 분포"></canvas></div></div></div>
+            <div class="vs-result-meta"><span id="vs-result-count" role="status" aria-live="polite">검색 대기</span><span class="vs-candidate-label"><i data-lucide="info"></i>제품·버전 확인 필요</span></div>
+            <div id="vs-result-list"></div>
+            <footer class="vs-pagination"><label for="vs-page-size">페이지당 <select id="vs-page-size"><option value="20">20</option><option value="50">50</option><option value="100">100</option></select></label><div><button id="vs-prev" class="vs-icon-button" aria-label="이전 페이지" title="이전 페이지"><i data-lucide="chevron-left"></i></button><span id="vs-page-label">1 / 1</span><button id="vs-next" class="vs-icon-button" aria-label="다음 페이지" title="다음 페이지"><i data-lucide="chevron-right"></i></button></div></footer>
+          </section>
         </div>
-        <div class="card-header" style="margin-top:16px"><span class="card-title">CVE 취약점 상세 목록</span></div>
-        <table class="data-table" id="cve-table">
-          <thead>
-            <tr><th>CVE ID</th><th>심각도</th><th>CVSS</th><th>CWE</th><th>설명</th><th>영향 장비</th><th>패치 여부</th><th>액션</th></tr>
-          </thead>
-          <tbody id="cve-tbody"></tbody>
-        </table>
       </div>
 
       <!-- ===== SECURITY CHECK RESULTS PAGE ===== -->
@@ -562,31 +586,12 @@
         </table>
       </div>
 
-      <div class="modal-overlay" id="cve-detail-modal" style="display:none">
-        <div class="modal cve-detail-modal">
-          <div class="modal-header">
-            <span id="cve-detail-title">CVE 상세</span>
-            <button onclick="closeModal('cve-detail-modal')">×</button>
-          </div>
-          <div class="modal-body">
-            <div class="cve-detail-grid">
-              <div><span>CVE ID</span><strong id="cve-detail-id">--</strong></div>
-              <div><span>Severity</span><strong id="cve-detail-severity">--</strong></div>
-              <div><span>CVSS</span><strong id="cve-detail-score">--</strong></div>
-              <div><span>CWE</span><strong id="cve-detail-cwe">--</strong></div>
-              <div><span>Published</span><strong id="cve-detail-published">--</strong></div>
-              <div><span>Vector</span><strong id="cve-detail-vector">--</strong></div>
-            </div>
-            <div class="cve-description-block">
-              <span>설명</span>
-              <p id="cve-detail-description">--</p>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-secondary" onclick="closeModal('cve-detail-modal')">닫기</button>
-          </div>
-        </div>
-      </div>
+      <dialog id="vs-detail-dialog" class="vs-dialog" aria-labelledby="vs-detail-title">
+        <header><div><span class="vs-eyebrow">VULNERABILITY REPORT</span><h2 id="vs-detail-title">취약점 상세</h2></div><button class="vs-icon-button" id="vs-detail-close" aria-label="상세 닫기" title="닫기"><i data-lucide="x"></i></button></header>
+        <div id="vs-detail-body" class="vs-dialog-body"></div>
+        <footer id="vs-detail-footer"></footer>
+      </dialog>
+      <dialog id="vs-action-dialog" class="vs-dialog vs-action-dialog" aria-labelledby="vs-action-title"><header><h2 id="vs-action-title">조치 상태 변경</h2></header><div class="vs-dialog-body"><p id="vs-action-message"></p><p id="vs-action-error" class="vs-error" role="alert"></p></div><footer><button class="btn-secondary" id="vs-action-cancel">취소</button><button class="btn-primary" id="vs-action-confirm">확인</button></footer></dialog>
 
       <!-- ===== THRESHOLDS PAGE ===== -->
       <div class="page" id="page-thresholds">
@@ -890,6 +895,8 @@
     <div class="alert-panel-list" id="alert-panel-list"></div>
   </div>
 
-  <script src="js/dashboard.js?v=20260730-1"></script>
+  <script src="js/lucide.min.js?v=1.8.0"></script>
+  <script src="js/dashboard.js?v=20261105-1"></script>
+  <script src="js/security-search.js?v=20261105-1"></script>
 </body>
 </html>

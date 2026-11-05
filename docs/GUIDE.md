@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.59 | 최종 업데이트: 2026-09-08
+> 버전: 1.2.60 | 최종 업데이트: 2026-11-05
 
 ---
 
@@ -11,6 +11,7 @@
 | **Windows** Server 2019/2022, Windows 10/11 | [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) |
 | **Rocky Linux** 8.x / 9.x | [INSTALL_ROCKY.md](INSTALL_ROCKY.md) |
 | **CVE/NVD 운영** | [CVE_NVD_UPDATE_GUIDE.md](CVE_NVD_UPDATE_GUIDE.md) |
+| **취약점 검색 / 패치 적용** | [VULNERABILITY_SEARCH_GUIDE.md](VULNERABILITY_SEARCH_GUIDE.md) |
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
 
 > 아래 내용은 공통 개요입니다. 실제 설치는 위 플랫폼별 메뉴얼을 따르세요.
@@ -590,6 +591,22 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.60 (2026-11-05) - 자산 중심 취약점 검색
+
+- 보안 > 취약점 화면을 Criminal IP Asset Search의 검색·필터·상세 조회 흐름을 참고한 로컬 검색 화면으로 변경했다. 외부 Criminal IP API 접속이나 내부 IP 전송은 하지 않는다.
+- IP/CIDR, 장비명, OS/제품/제조사, CVE/CWE, CVSS 조건 검색과 심각도·장비 유형·조치 상태 필터를 추가했다.
+- `등록 자산 연관` / `로컬 NVD 전체` 범위, `자산` / `취약점` 보기, 정렬과 20/50/100건 페이지 조회를 제공한다. 검색 결과는 기존 장비당 50건·전체 100건 제한을 적용하지 않는다.
+- CPE 제품 정보가 있으면 등록 장비 OS/제품명과 비교한다. CPE가 없는 항목만 일반 단어를 제외한 OS 키워드로 후보를 찾는다. 제품명 일치는 버전·구성 조건 검증이 아니므로 화면에 `영향 후보`, `버전 확인 필요`를 표시한다. 대시보드 요약도 새 검색 엔진의 전체 미조치 후보 집계를 사용한다.
+- 상세 팝업에 전체 설명, CVSS 벡터, 모든 CWE, 연관 자산/IP, 매칭 근거, CPE/버전 범위, 참고 자료를 표시한다. CVSS 4.0/3.1/3.0/2.0 데이터를 지원한다.
+- 관리자만 패치 완료·미조치 복원을 수행하며, 확인창에 전체 장비 대상 CVE 단위 처리임을 명시했다. 운영자는 검색과 상세 조회만 가능하다.
+- NVD 파일 변경·삭제 및 장비 정보 변경 시 인덱스를 갱신한다. 검색은 서버 스레드에서 수행하며 같은 캐시의 동시 로딩을 잠금으로 보호한다.
+- 결과 순서가 뒤바뀌는 비동기 응답을 차단하고, 브라우저 세션의 사용자별 검색 조건을 유지한다. 분포 그래프와 모바일 필터/레이아웃을 제공한다.
+- Lucide 아이콘을 로컬에 포함했다. 인터넷 연결이나 신규 Python 패키지 설치는 필요하지 않다.
+
+변경 파일: `backend/api/routes.py`, `backend/security/cve_checker.py`, `backend/security/vulnerability_search.py`, `frontend/index.html`, `frontend/js/dashboard.js`, `frontend/js/security-search.js`, `frontend/css/security-search.css`, `frontend/js/lucide.min.js`, `frontend/js/lucide.LICENSE`. 테스트·샘플 미리보기·Guide도 추가/갱신했다.
+
+Windows/Rocky 적용, 검색 문법, NVD 준비, 권한, 로그 확인 및 검증 범위는 [취약점 검색 운영 가이드](VULNERABILITY_SEARCH_GUIDE.md)에 정리했다. 기존 DB 스키마와 장비·사용자·SMTP 설정은 변경하지 않는다.
 
 ### v1.2.59 (2026-09-08) - 동일 미해결 이벤트 알림 메일 1회 제한
 

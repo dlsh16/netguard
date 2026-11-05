@@ -10,9 +10,11 @@ import gzip
 import json
 import logging
 import re
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from security.vulnerability_search import VulnerabilityIndex, cpe_metadata
 
 logger = logging.getLogger('netguard.cve')
 
@@ -47,10 +49,16 @@ class CVEChecker:
         self.last_updated: Optional[str] = None
         self.feed_count = 0
         self._cache_signature: Optional[Tuple[Tuple[str, float, int], ...]] = None
+        self._search_lock = threading.RLock()
+        self._search_index = None
+        self._inventory_signature = None
+        self.load_errors = []
 
     def load_local_db(self):
         """Load NVD JSON feeds from cache directory."""
         entries = []
+        self.load_errors = []
+        self._search_index = None
         feed_files = list(self.cache_dir.glob("nvdcve-*.json*"))
         self.feed_count = len(feed_files)
         self.last_updated = self._get_last_updated(feed_files)
@@ -58,6 +66,8 @@ class CVEChecker:
         if not feed_files:
             logger.warning("No NVD cache files found. Run scripts/download_nvd.py to populate.")
             self._loaded = True
+            self._cve_db = []
+            self._cache_signature = self._build_cache_signature(feed_files)
             return
 
         for path in sorted(feed_files):
@@ -72,6 +82,7 @@ class CVEChecker:
                     if entry:
                         entries.append(entry)
             except Exception as e:
+                self.load_errors.append(path.name)
                 logger.error(f"Failed to load {path}: {e}")
 
         self._cve_db = entries
@@ -124,18 +135,22 @@ class CVEChecker:
                 cve_id = cve['id']
                 desc = next((d['value'] for d in cve.get('descriptions', []) if d['lang'] == 'en'), '')
                 metrics = cve.get('metrics', {})
-                cvss_data = (metrics.get('cvssMetricV31', [{}])[0].get('cvssData', {})
-                             or metrics.get('cvssMetricV30', [{}])[0].get('cvssData', {})
-                             or metrics.get('cvssMetricV2', [{}])[0].get('cvssData', {}))
+                cvss_data = next((m['cvssData'] for key in (
+                    'cvssMetricV40', 'cvssMetricV31', 'cvssMetricV30', 'cvssMetricV2'
+                ) for m in metrics.get(key, []) if m.get('cvssData')), {})
                 score = cvss_data.get('baseScore', 0.0)
                 vector = cvss_data.get('vectorString', '')
-                cwe_list = [p['description'][0]['value'] for p in cve.get('weaknesses', [])
-                            if p.get('description')]
+                cwe_list = list(dict.fromkeys(d['value'] for p in cve.get('weaknesses', [])
+                                             for d in p.get('description', []) if d.get('value')))
                 severity = self._score_to_severity(score)
                 keywords = self._extract_keywords(cve_id, desc, cve.get('configurations', {}))
                 return {'id': cve_id, 'desc': desc, 'score': score, 'vector': vector,
                         'cwe': cwe_list[0] if cwe_list else '', 'severity': severity,
-                        'keywords': keywords, 'published': cve.get('published', '')}
+                        'keywords': keywords, 'published': cve.get('published', ''),
+                        'modified': cve.get('lastModified', ''), 'cwes': cwe_list,
+                        'rejected': cve.get('vulnStatus') == 'Rejected',
+                        'cpes': cpe_metadata(cve.get('configurations', [])),
+                        'references': [r['url'] for r in cve.get('references', []) if r.get('url')]}
 
             # NVD 1.1 format
             if 'cve' in item:
@@ -153,7 +168,11 @@ class CVEChecker:
                 keywords = self._extract_keywords(cve_id, desc, item.get('configurations', {}))
                 return {'id': cve_id, 'desc': desc, 'score': score, 'vector': vector,
                         'cwe': cwes[0] if cwes else '', 'severity': severity,
-                        'keywords': keywords, 'published': item.get('publishedDate', '')}
+                        'keywords': keywords, 'published': item.get('publishedDate', ''),
+                        'modified': item.get('lastModifiedDate', ''), 'cwes': cwes,
+                        'rejected': cve['CVE_data_meta'].get('STATE') == 'REJECT' or desc.startswith('** REJECT **'),
+                        'cpes': cpe_metadata(item.get('configurations', {})),
+                        'references': [r['url'] for r in cve.get('references', {}).get('reference_data', []) if r.get('url')]}
         except Exception:
             pass
         return None
@@ -211,38 +230,29 @@ class CVEChecker:
         return results[:50]
 
     def get_summary(self, devices: List[dict], completed_cve_ids: Optional[set[str]] = None) -> dict:
-        """Return aggregated CVE summary across all devices."""
+        """Keep the dashboard API compatible, with counts from the full index."""
+        return self.search(devices, completed_cve_ids or set(), page_size=100)
+
+    def _prepare_search(self, devices):
         if not self._loaded:
             self.load_local_db()
         else:
             self.reload_if_changed()
+        signature = tuple(sorted(tuple(str(d.get(k) or '') for k in (
+            'id', 'name', 'ip_address', 'type', 'os_version', 'location'
+        )) for d in devices))
+        if self._search_index is None or signature != self._inventory_signature:
+            self._search_index = VulnerabilityIndex(self._cve_db, devices)
+            self._inventory_signature = signature
 
-        completed_cve_ids = completed_cve_ids or set()
-        all_cves: Dict[str, dict] = {}
-        for device in devices:
-            hits = self.check_device(
-                device['name'],
-                device.get('os_version', ''),
-                device.get('software', [])
-            )
-            for hit in hits:
-                cid = hit['cve_id']
-                if cid in completed_cve_ids:
-                    continue
-                if cid not in all_cves:
-                    all_cves[cid] = {**hit, 'affected_devices': []}
-                all_cves[cid]['affected_devices'].append(device['name'])
+    def search(self, devices, completed=(), **filters):
+        with self._search_lock:
+            self._prepare_search(devices)
+            result = self._search_index.search(completed, **filters)
+            return {**result, 'last_updated': self.last_updated, 'feed_count': self.feed_count,
+                    'loaded_entries': len(self._search_index.records), 'load_errors': list(self.load_errors)}
 
-        cve_list = list(all_cves.values())
-        counts = {'CRITICAL': 0, 'HIGH': 0, 'MEDIUM': 0, 'LOW': 0}
-        for c in cve_list:
-            counts[c['severity']] = counts.get(c['severity'], 0) + 1
-
-        return {
-            'total': len(cve_list),
-            'counts': counts,
-            'items': sorted(cve_list, key=lambda x: x['cvss'], reverse=True)[:100],
-            'last_updated': self.last_updated,
-            'feed_count': self.feed_count,
-            'loaded_entries': len(self._cve_db),
-        }
+    def get_detail(self, cve_id, devices, completed=()):
+        with self._search_lock:
+            self._prepare_search(devices)
+            return self._search_index.detail(cve_id, completed)

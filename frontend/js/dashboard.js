@@ -1381,18 +1381,7 @@ function renderProcessChart() {
 
 // ===== SECURITY =====
 async function renderSecurity() {
-  if (!state.cves._loaded) { await loadCVEs(); }
-  const counts = state.cves.counts || {};
-  setEl('cve-count-critical', counts.CRITICAL ?? 0);
-  setEl('cve-count-high',     counts.HIGH     ?? 0);
-  setEl('cve-count-medium',   counts.MEDIUM   ?? 0);
-  setEl('cve-count-low',      counts.LOW      ?? 0);
-  if (state.cves.last_updated) {
-    setEl('nvd-update-date', state.cves.last_updated.slice(0, 10));
-  }
-  renderCVSSChart();
-  renderAffectedChart();
-  renderCVETable();
+  await window.SecuritySearch.render();
 }
 
 // ===== SCRIPT CHECK RESULTS =====
@@ -2521,15 +2510,7 @@ function renderCVETableDeprecated() {
 }
 
 async function completeCVE(id) {
-  try {
-    await api('/security/cves/' + encodeURIComponent(id) + '/complete', 'POST');
-    await loadCVEs();
-    renderSecurity();
-    showToast(`${id} 완료 처리`);
-  } catch (e) {
-    showToast('CVE 완료 처리 실패');
-    console.error(e);
-  }
+  window.SecuritySearch.confirmAction(id, false);
 }
 
 async function renderDevices() {
@@ -2688,26 +2669,7 @@ window.changeTimeRange = changeTimeRange;
 window.updateSnmpV3Fields = updateSnmpV3Fields;
 
 async function showCVEDetail(id) {
-  try {
-    const c = await api('/security/cves/' + encodeURIComponent(id));
-    document.getElementById('cve-detail-title').textContent = `${c.cve_id || c.id} 상세`;
-    document.getElementById('cve-detail-id').textContent = c.cve_id || c.id || '--';
-    document.getElementById('cve-detail-severity').textContent = c.severity || '--';
-    document.getElementById('cve-detail-score').textContent =
-      c.cvss != null ? Number(c.cvss).toFixed(1) : c.score != null ? Number(c.score).toFixed(1) : '--';
-    document.getElementById('cve-detail-cwe').textContent = c.cwe || '--';
-    document.getElementById('cve-detail-published').textContent = c.published || '--';
-    document.getElementById('cve-detail-vector').textContent = c.vector || '--';
-    document.getElementById('cve-detail-description').textContent =
-      c.description || c.desc || '상세 설명이 없습니다.';
-    const modal = document.getElementById('cve-detail-modal');
-    if (modal.parentElement !== document.body) {
-      document.body.appendChild(modal);
-    }
-    modal.style.display = 'flex';
-  } catch (e) {
-    showToast(id + ' 상세 정보를 불러올 수 없습니다.');
-  }
+  await window.SecuritySearch.detail(id);
 }
 
 function showToast(msg) {
