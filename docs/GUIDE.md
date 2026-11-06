@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.60 | 최종 업데이트: 2026-11-05
+> 버전: 1.2.61 | 최종 업데이트: 2026-11-07
 
 ---
 
@@ -11,6 +11,7 @@
 | **Windows** Server 2019/2022, Windows 10/11 | [INSTALL_WINDOWS.md](INSTALL_WINDOWS.md) |
 | **Rocky Linux** 8.x / 9.x | [INSTALL_ROCKY.md](INSTALL_ROCKY.md) |
 | **CVE/NVD 운영** | [CVE_NVD_UPDATE_GUIDE.md](CVE_NVD_UPDATE_GUIDE.md) |
+| **로컬 NVD 갱신 / 폐쇄망 반입** | [NVD_LOCAL_UPDATE.md](NVD_LOCAL_UPDATE.md) |
 | **취약점 검색 / 패치 적용** | [VULNERABILITY_SEARCH_GUIDE.md](VULNERABILITY_SEARCH_GUIDE.md) |
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
 
@@ -591,6 +592,15 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.61 (2026-11-07) - 공식 NVD 연도별 피드 갱신
+
+- API 키가 필요 없는 공식 NVD 2.0 연도별 피드 다운로드 도구를 추가했다. SHA256/크기/JSON 건수를 검증하고 모든 선택 연도 검증 후 기존 파일 백업과 파일별 원자 교체를 수행한다.
+- 기존 연간 API 다운로드의 실패 시 빈 데이터 저장 위험을 피하도록 전체 갱신 권장 명령을 변경했다. 기존 API 증분 스크립트는 변경하지 않았다.
+- 개발 PC의 실제 캐시 경로 `data/nvd_cache`에 2024~2026년 원본 170,527건을 준비했다. 이전 `backend/data/nvd_cache` 파일은 보존했다.
+- 실제 NetGuard 로더로 피드 3개와 검색 카탈로그 166,549건, 로딩 오류 0건을 확인했다. 원본 갱신일은 한국시간 2026-11-06이며 운영 서버 반입은 별도 수행한다.
+- 폐쇄망 반입 ZIP은 데이터만 포함하고 Git에는 업로드하지 않는다. Windows/Rocky 백업·반입·서비스 확인 절차와 실제 원본 갱신 시각을 [로컬 NVD 갱신 가이드](NVD_LOCAL_UPDATE.md)에 기록했다.
+- 변경 파일: `scripts/download_nvd_feeds.py`, `tests/test_nvd_feeds.py`, `docs/NVD_LOCAL_UPDATE.md`, `docs/CVE_NVD_UPDATE_GUIDE.md`, `docs/GUIDE.md`.
 
 ### v1.2.60 (2026-11-05) - 자산 중심 취약점 검색
 

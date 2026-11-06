@@ -4,6 +4,8 @@
 > 작성 기준: 2026-05-18  
 > 적용 환경: 오프라인 운영 서버 + 인터넷 가능한 별도 동기화 PC
 
+> 2026-11-07 / v1.2.61: 전체 로컬 NVD 갱신은 API 키 없이 검증된 공식 연도별 피드를 사용하는 [로컬 NVD 업데이트 가이드](NVD_LOCAL_UPDATE.md)를 우선 따른다. 기존 `download_nvd.py`는 실패 시 불완전한 파일을 저장할 수 있으므로 전체 갱신에 사용하지 않는다. 이 문서의 API 키 절차는 API 증분 갱신용으로 유지한다.
+
 > 2026-11-05 / v1.2.60: 검색·필터·영향 후보 확인·패치 완료/복원 및 Windows/Rocky 패치 적용 절차는 [취약점 검색 운영 가이드](VULNERABILITY_SEARCH_GUIDE.md)를 참고한다. NVD 파일 반입 방식과 API 인증키 발급 절차는 이 문서를 계속 사용한다.
 
 ---
@@ -14,7 +16,7 @@
 
 운영 흐름은 다음과 같다.
 
-1. NVD API 인증키 발급
+1. 공식 연도별 피드 사용 또는 API 증분 갱신용 인증키 발급
 2. 인터넷 가능한 PC에서 최초 전체 데이터 다운로드
 3. 오프라인 NetGuard 서버로 파일 반입
 4. 서비스 재시작 및 로딩 확인
@@ -88,18 +90,14 @@ $env:NVD_API_KEY = '발급받은_NVD_API_KEY'
 ```bash
 cd /opt/netguard
 source venv/bin/activate
-export NVD_API_KEY='발급받은_NVD_API_KEY'
-
-python scripts/download_nvd.py --years 2024 2025 2026
+python scripts/download_nvd_feeds.py --years 2024 2025 2026
 ```
 
 ### 4.2 Windows
 
 ```powershell
 cd C:\NetGuard_temp
-$env:NVD_API_KEY = '발급받은_NVD_API_KEY'
-
-python scripts\download_nvd.py --years 2024 2025 2026
+python scripts\download_nvd_feeds.py --years 2024 2025 2026
 ```
 
 ### 4.3 생성 파일
@@ -111,7 +109,7 @@ data/nvd_cache/nvdcve-2026.json
 data/nvd_cache/cache_meta.json
 ```
 
-`cache_meta.json`의 `last_updated` 값은 CVE/CWE 화면의 `NVD 데이터베이스 마지막 업데이트` 표시에 사용된다.
+`cache_meta.json`의 `last_updated` 값은 CVE/CWE 화면의 마지막 업데이트 표시에 사용된다. 공식 피드 도구에서는 원본 피드 갱신 시각이며 실제 다운로드 시각은 `downloaded_at`이다. 함께 생성되는 `.meta`에는 NIST 원본 크기/해시가 있다. ZIP 반입 절차는 [NVD_LOCAL_UPDATE.md](NVD_LOCAL_UPDATE.md)를 따른다.
 
 ---
 
@@ -249,7 +247,7 @@ schtasks /Create /TN "NetGuard-NVD-Update" /SC HOURLY /MO 2 `
 
 ### 9.2 확인 기준
 
-- `last_updated` 날짜가 최근 반입 또는 동기화 일자와 일치해야 한다.
+- 공식 피드의 `last_updated`는 원본 갱신일이므로 반입 당일과 다를 수 있다. `downloaded_at`과 연도별 `feeds`도 함께 확인한다.
 - CVE 건수가 `0`으로만 표시되면 캐시 파일 로딩 로그를 먼저 확인한다.
 
 ---
