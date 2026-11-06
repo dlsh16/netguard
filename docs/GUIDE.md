@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.61 | 최종 업데이트: 2026-11-07
+> 버전: 1.2.62 | 최종 업데이트: 2026-11-07
 
 ---
 
@@ -12,6 +12,7 @@
 | **Rocky Linux** 8.x / 9.x | [INSTALL_ROCKY.md](INSTALL_ROCKY.md) |
 | **CVE/NVD 운영** | [CVE_NVD_UPDATE_GUIDE.md](CVE_NVD_UPDATE_GUIDE.md) |
 | **로컬 NVD 갱신 / 폐쇄망 반입** | [NVD_LOCAL_UPDATE.md](NVD_LOCAL_UPDATE.md) |
+| **NVD 반영 후 첫 접속 지연 개선** | [NVD_PERFORMANCE_GUIDE.md](NVD_PERFORMANCE_GUIDE.md) |
 | **취약점 검색 / 패치 적용** | [VULNERABILITY_SEARCH_GUIDE.md](VULNERABILITY_SEARCH_GUIDE.md) |
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
 
@@ -592,6 +593,14 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.62 (2026-11-07) - NVD 최초 로딩과 대시보드 초기화 분리
+
+- 대시보드 첫 화면과 실시간 연결이 전체 NVD 처리를 기다리던 초기화 구조를 수정했다. CVE 요약은 별도로 받아 해당 카드만 갱신하고 조회 실패를 취약점 0건으로 표시하지 않는다.
+- 원본 피드별 파생 JSONL 캐시, 동일 제품 매칭 재사용, 페이지 단위 결과 생성, 최대 16개 검색 결과 캐시를 추가했다. 원본/장비/조치 상태 변경 시 갱신한다. 동일 조건의 자동 재조회도 60초 이내 재사용한다.
+- 공식 원본 170,527건 / 검색 카탈로그 166,549건을 유지했다. 개발 PC의 캐시 재사용 비교에서 첫 CVE 요약 28.336초 → 6.809초, 최대 메모리 4,147.5 MiB → 1,216.2 MiB를 확인했다. 최초 캐시 생성 비용은 남으며 운영 서버 실측은 아니다.
+- Windows/Rocky 패치·사전 캐시 준비·로그 및 CPU/swap 점검 절차는 [NVD 성능 개선 가이드](NVD_PERFORMANCE_GUIDE.md)에 기록했다. 운영 DB·사용자·장비·서비스 자동 시작 설정은 변경하지 않는다.
+- 변경 파일: `backend/security/cve_checker.py`, `backend/security/vulnerability_search.py`, 신규 `backend/security/nvd_cache.py`, `frontend/index.html`, `frontend/js/dashboard.js`, `frontend/js/security-search.js`, 캐시 준비/벤치마크/미리보기 스크립트, 회귀 테스트 및 Guide.
 
 ### v1.2.61 (2026-11-07) - 공식 NVD 연도별 피드 갱신
 

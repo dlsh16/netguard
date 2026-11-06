@@ -70,10 +70,11 @@ async def preview_identity(request: Request, call_next):
 
 
 @preview.get('/', response_class=HTMLResponse)
-async def index(role: str = 'admin'):
+async def index(role: str = 'admin', view: str = 'security'):
     role = 'operator' if role == 'operator' else 'admin'
+    view = 'dashboard' if view == 'dashboard' else 'security'
     user = json.dumps({'username': 'preview-' + role, 'full_name': '미리보기', 'role': role})
-    boot = f"<script>localStorage.setItem('ng_token','preview-{role}');localStorage.setItem('ng_user',JSON.stringify({user}));location.hash='security';</script>"
+    boot = f"<script>localStorage.setItem('ng_token','preview-{role}');localStorage.setItem('ng_user',JSON.stringify({user}));location.hash='{view}';</script>"
     html = (ROOT / 'frontend' / 'index.html').read_text(encoding='utf-8')
     html = html.replace('<head>', '<head>' + boot)
     html = html.replace('<h1>취약점 검색</h1>', '<h1>취약점 검색 <small style="font-size:11px;color:#d6c59a">샘플 데이터 · 로컬 미리보기</small></h1>')
@@ -87,6 +88,7 @@ async def devices():
 
 @preview.get('/api/events')
 @preview.get('/api/metrics/latest')
+@preview.get('/api/metrics/{device_id}')
 async def empty_list():
     return []
 

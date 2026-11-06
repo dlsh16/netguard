@@ -39,6 +39,7 @@ let chartInstances = {};
 let editingDeviceId = null;
 let alertConfigLoaded = false;
 let ws = null;
+let cveLoadPromise = null;
 
 const state = {
   devices: [],
@@ -92,10 +93,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   applyRolePermissions();
   updateClock();
   setInterval(updateClock, 1000);
-  await Promise.all([loadAll(), loadCVEs(), loadCheckResults()]);
-  await loadThresholds();
+  await loadAll();
   connectWebSocket();
   renderPage(currentPage);
+  // Keep NVD indexing off the dashboard's initial render path.
+  loadCVEs();
+  loadCheckResults().then(() => { if (currentPage === 'security-checks') renderPage(currentPage); });
+  loadThresholds();
   setInterval(() => loadAll().then(() => renderPage(currentPage)), 60000);
 });
 
@@ -126,15 +130,21 @@ async function loadLatestMetrics() {
   }
 }
 
-async function loadCVEs() {
-  try {
-    const data = await api('/security/cves');
-    state.cves = { ...data, _loaded: true };
-    updateBadges();
-  } catch (e) {
-    console.error('CVE load failed:', e);
-    state.cves._loaded = true;
-  }
+function loadCVEs() {
+  if (cveLoadPromise) return cveLoadPromise;
+  cveLoadPromise = (async () => {
+    try {
+      const data = await api('/security/cves');
+      state.cves = { ...data, _loaded: true, _error: false };
+      updateBadges();
+    } catch (e) {
+      console.error('CVE load failed:', e);
+      state.cves._error = true;
+    } finally {
+      if (currentPage === 'dashboard') renderSummaryCards();
+    }
+  })().finally(() => { cveLoadPromise = null; });
+  return cveLoadPromise;
 }
 
 async function loadCheckResults() {
@@ -173,7 +183,13 @@ function ensureNetworkToggleControls() {
   header.appendChild(actions);
 }
 
-function refreshData() { loadAll().then(() => renderPage(currentPage)); }
+function refreshData() {
+  loadAll().then(() => {
+    if (currentPage === 'security') window.SecuritySearch.render(true);
+    else renderPage(currentPage);
+  });
+  loadCVEs();
+}
 
 // ===== WEBSOCKET =====
 function connectWebSocket() {
@@ -717,7 +733,11 @@ function renderSummaryCards() {
   // CVE
   const cveEl = document.getElementById('summary-cve-val');
   if (cveEl) {
-    if (!state.cves._loaded) {
+    if (state.cves._error) {
+      cveEl.textContent = '--';
+      cveEl.className = 'summary-value';
+      setElHtml('summary-cve-status', '<span style="color:var(--text-muted)">취약점 조회 실패</span>');
+    } else if (!state.cves._loaded) {
       cveEl.textContent = '--';
       cveEl.className = 'summary-value';
       setElHtml('summary-cve-status', '<span style="color:var(--text-muted)">로딩중</span>');

@@ -2,6 +2,8 @@
 
 작성일: 2026-11-07 / 업데이트 도구: v1.2.61 / 기존 NetGuard v1.2.60 호환
 
+> v1.2.62 이상에서는 새 피드 반입 후 서비스를 시작하기 전에 `scripts/prepare_nvd_cache.py --cache-dir 실제캐시경로`로 파생 캐시를 준비하면 첫 조회 비용을 줄일 수 있다. Windows/Rocky 명령과 성능 비교는 [NVD_PERFORMANCE_GUIDE.md](NVD_PERFORMANCE_GUIDE.md)를 참고한다. v1.2.60/61에 이 스크립트만 복사하지 말고 성능 패치 전체를 먼저 적용한다.
+
 ## 데이터 범위와 경로
 
 인터넷 가능한 PC에서 NIST 공식 NVD JSON 2.0 연도별 피드를 다운로드하고 폐쇄망 서버에 반입한다. 이 방식에는 API 키가 필요하지 않으며 외부로 장비 정보를 보내지 않는다. 공식 출처: [NVD Data Feeds](https://nvd.nist.gov/vuln/data-feeds).

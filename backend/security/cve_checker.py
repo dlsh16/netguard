@@ -1,20 +1,21 @@
 """
 CVE/CWE/CVSS Vulnerability Checker.
 Offline mode: uses locally cached NVD JSON feeds.
-Online mode: fetches from NVD API (when internet is available).
+Feed downloads are handled separately on the synchronization PC.
 
 NVD JSON feed download (run once with internet, then use offline):
-  python scripts/download_nvd.py
+  python scripts/download_nvd_feeds.py --years 2024 2025 2026
 """
-import gzip
 import json
 import logging
 import re
 import threading
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from security.vulnerability_search import VulnerabilityIndex, cpe_metadata
+from security.nvd_cache import load_entries
 
 logger = logging.getLogger('netguard.cve')
 
@@ -52,6 +53,7 @@ class CVEChecker:
         self._search_lock = threading.RLock()
         self._search_index = None
         self._inventory_signature = None
+        self._result_cache = OrderedDict()
         self.load_errors = []
 
     def load_local_db(self):
@@ -59,35 +61,29 @@ class CVEChecker:
         entries = []
         self.load_errors = []
         self._search_index = None
+        self._result_cache.clear()
         feed_files = list(self.cache_dir.glob("nvdcve-*.json*"))
+        signature = self._build_cache_signature(feed_files)
         self.feed_count = len(feed_files)
         self.last_updated = self._get_last_updated(feed_files)
 
         if not feed_files:
-            logger.warning("No NVD cache files found. Run scripts/download_nvd.py to populate.")
+            logger.warning("No NVD cache files found. Import feeds or run scripts/download_nvd_feeds.py --years YEAR.")
             self._loaded = True
             self._cve_db = []
-            self._cache_signature = self._build_cache_signature(feed_files)
+            self._cache_signature = signature
             return
 
         for path in sorted(feed_files):
             try:
-                opener = gzip.open if path.suffix == '.gz' else open
-                # utf-8-sig accepts both regular UTF-8 and Windows-exported UTF-8 with BOM.
-                with opener(path, 'rt', encoding='utf-8-sig') as f:
-                    feed = json.load(f)
-                items = feed.get('CVE_Items', feed.get('vulnerabilities', []))
-                for item in items:
-                    entry = self._parse_nvd_item(item)
-                    if entry:
-                        entries.append(entry)
+                entries.extend(load_entries(path, self._parse_nvd_item))
             except Exception as e:
                 self.load_errors.append(path.name)
                 logger.error(f"Failed to load {path}: {e}")
 
         self._cve_db = entries
         self._loaded = True
-        self._cache_signature = self._build_cache_signature(feed_files)
+        self._cache_signature = signature
         logger.info(f"Loaded {len(entries)} CVE entries from local NVD cache")
 
     def _get_last_updated(self, feed_files: List[Path]) -> Optional[str]:
@@ -143,13 +139,14 @@ class CVEChecker:
                 cwe_list = list(dict.fromkeys(d['value'] for p in cve.get('weaknesses', [])
                                              for d in p.get('description', []) if d.get('value')))
                 severity = self._score_to_severity(score)
-                keywords = self._extract_keywords(cve_id, desc, cve.get('configurations', {}))
+                cpes = cpe_metadata(cve.get('configurations', []))
+                keywords = [] if cpes else self._extract_keywords(cve_id, desc, {})
                 return {'id': cve_id, 'desc': desc, 'score': score, 'vector': vector,
                         'cwe': cwe_list[0] if cwe_list else '', 'severity': severity,
                         'keywords': keywords, 'published': cve.get('published', ''),
                         'modified': cve.get('lastModified', ''), 'cwes': cwe_list,
                         'rejected': cve.get('vulnStatus') == 'Rejected',
-                        'cpes': cpe_metadata(cve.get('configurations', [])),
+                        'cpes': cpes,
                         'references': [r['url'] for r in cve.get('references', []) if r.get('url')]}
 
             # NVD 1.1 format
@@ -165,13 +162,14 @@ class CVEChecker:
                 cwes = [p['value'] for pb in cve.get('problemtype', {}).get('problemtype_data', [])
                         for p in pb.get('description', [])]
                 severity = self._score_to_severity(score)
-                keywords = self._extract_keywords(cve_id, desc, item.get('configurations', {}))
+                cpes = cpe_metadata(item.get('configurations', {}))
+                keywords = [] if cpes else self._extract_keywords(cve_id, desc, {})
                 return {'id': cve_id, 'desc': desc, 'score': score, 'vector': vector,
                         'cwe': cwes[0] if cwes else '', 'severity': severity,
                         'keywords': keywords, 'published': item.get('publishedDate', ''),
                         'modified': item.get('lastModifiedDate', ''), 'cwes': cwes,
                         'rejected': cve['CVE_data_meta'].get('STATE') == 'REJECT' or desc.startswith('** REJECT **'),
-                        'cpes': cpe_metadata(item.get('configurations', {})),
+                        'cpes': cpes,
                         'references': [r['url'] for r in cve.get('references', {}).get('reference_data', []) if r.get('url')]}
         except Exception:
             pass
@@ -213,7 +211,7 @@ class CVEChecker:
         for cve in self._cve_db:
             if cve['score'] < 4.0:
                 continue
-            cve_kws = set(cve.get('keywords', []))
+            cve_kws = set(cve.get('keywords') or self._extract_keywords(cve['id'], cve['desc'], {}))
             if os_keywords & cve_kws:
                 results.append({
                     'cve_id': cve['id'],
@@ -244,11 +242,20 @@ class CVEChecker:
         if self._search_index is None or signature != self._inventory_signature:
             self._search_index = VulnerabilityIndex(self._cve_db, devices)
             self._inventory_signature = signature
+            self._result_cache.clear()
 
     def search(self, devices, completed=(), **filters):
         with self._search_lock:
             self._prepare_search(devices)
-            result = self._search_index.search(completed, **filters)
+            key = (frozenset(completed), tuple(sorted(filters.items())))
+            result = self._result_cache.get(key)
+            if result is None:
+                result = self._search_index.search(completed, **filters)
+                self._result_cache[key] = result
+                if len(self._result_cache) > 16:
+                    self._result_cache.popitem(last=False)
+            else:
+                self._result_cache.move_to_end(key)
             return {**result, 'last_updated': self.last_updated, 'feed_count': self.feed_count,
                     'loaded_entries': len(self._search_index.records), 'load_errors': list(self.load_errors)}
 

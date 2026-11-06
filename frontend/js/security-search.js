@@ -4,6 +4,7 @@ window.SecuritySearch = (() => {
   const defaults = { q: '', scope: 'affected', view: 'assets', severity: '', device_type: '', asset_id: '', asset_name: '', status: 'open', min_cvss: 0, max_cvss: 10, sort: 'score', page: 1, page_size: 20 };
   let filters = { ...defaults };
   let initialized = false, requestId = 0, detailRequest = 0, result = null, action = null, actionPending = false;
+  let activeQuery = null, activeRequest = null, lastQuery = null, lastSearchAt = 0;
   const charts = {};
   const el = id => document.getElementById(id);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -25,7 +26,7 @@ window.SecuritySearch = (() => {
     if (!['assets', 'cves'].includes(filters.view)) filters.view = 'assets';
     if (location.hash === '#security') navigateTo('security');
     el('vs-search-form').addEventListener('submit', event => { event.preventDefault(); filters.q = el('vs-query').value.trim(); search(true); });
-    el('vs-refresh').addEventListener('click', () => search());
+    el('vs-refresh').addEventListener('click', () => search(false, true));
     el('vs-filter-toggle').addEventListener('click', () => {
       const expanded = document.querySelector('.vs-workspace').classList.toggle('filters-open');
       el('vs-filter-toggle').setAttribute('aria-expanded', String(expanded));
@@ -76,8 +77,19 @@ window.SecuritySearch = (() => {
     icons();
   }
 
-  async function search(resetPage = false) {
+  function search(resetPage = false, force = false) {
     if (resetPage) filters.page = 1;
+    const query = JSON.stringify(filters);
+    if (activeRequest && activeQuery === query) return activeRequest;
+    if (!force && result && query === lastQuery && Date.now() - lastSearchAt < 60000) return Promise.resolve();
+    activeQuery = query;
+    const request = runSearch(query);
+    activeRequest = request;
+    request.finally(() => { if (activeRequest === request) activeRequest = null; });
+    return request;
+  }
+
+  async function runSearch(query) {
     const run = ++requestId;
     try { sessionStorage.setItem(storageKey(), JSON.stringify(filters)); } catch (_) {}
     const params = new URLSearchParams();
@@ -91,6 +103,8 @@ window.SecuritySearch = (() => {
       if (run !== requestId) return;
       result = data;
       filters.page = data.page;
+      lastQuery = query;
+      lastSearchAt = Date.now();
       renderResult();
     } catch (error) {
       if (run !== requestId) return;
@@ -200,12 +214,12 @@ window.SecuritySearch = (() => {
       await api(`/security/cves/${encodeURIComponent(target.id)}/complete`, target.completed ? 'DELETE' : 'POST');
       el('vs-action-dialog').close();
       if (el('vs-detail-dialog').open) el('vs-detail-dialog').close();
-      await Promise.all([search(), loadCVEs()]);
+      await Promise.all([search(false, true), loadCVEs()]);
       showToast(`${target.id} ${target.completed ? '미조치로 복원되었습니다.' : '패치 완료 처리되었습니다.'}`);
     } catch (error) { el('vs-action-error').textContent = error.message; }
     finally { actionPending = false; el('vs-action-confirm').disabled = el('vs-action-cancel').disabled = false; }
   }
 
   document.addEventListener('DOMContentLoaded', () => { init(); });
-  return { render: async () => { init(); await search(); }, detail, confirmAction };
+  return { render: async (force = false) => { init(); await search(false, force); }, detail, confirmAction };
 })();
