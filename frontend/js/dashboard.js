@@ -583,7 +583,7 @@ function navigateTo(page) {
   if (pageEl) pageEl.classList.add('active');
   const titles = {
     dashboard:'전체 대시보드', servers:'서버 모니터링', switches:'스위치 모니터링',
-    environment:'항온항습 / UPS', processes:'프로세스 모니터링',
+    environment:'항온항습 / UPS', processes:'소프트웨어 검색',
     security:'취약점 (CVE/CWE/CVSS)', 'security-checks':'점검 결과 저장', events:'이벤트 로그',
     thresholds:'임계값 설정', alerts:'알림 설정', devices:'장비 관리',
     users:'사용자 관리', changelog:'업데이트 내역'
@@ -1345,58 +1345,7 @@ async function renderUPSHistoryChart(upsDev, upsM) {
 
 // ===== PROCESSES =====
 async function renderProcesses() {
-  const tbody = document.getElementById('all-process-tbody');
-  if (!tbody) return;
-  const rows = [];
-  state.devices.filter(d => d.type === 'server').forEach(d => {
-    const processes = getLive(d)?.metrics?.processes || [];
-    if (processes.length === 0) {
-      rows.push(`<tr><td style="color:var(--accent)">${d.name}</td>
-        <td colspan="7" style="color:var(--text-muted)">
-          ${getLive(d)
-            ? (d.snmp_version === 'agent' ? '프로세스 데이터 없음 (에이전트 수집 대기중)' : '프로세스 데이터 없음 (hrSWRun 미응답)')
-            : (d.snmp_version === 'agent' ? '에이전트 수집 대기중' : 'SNMP 수집 대기중')}
-        </td></tr>`);
-    } else {
-      processes.forEach(p => rows.push(`<tr>
-        <td>${d.name}</td><td>${p.name}</td>
-        <td style="font-family:var(--mono)">${p.pid}</td>
-        <td>${(p.cpu_centisec/100).toFixed(1)}s</td>
-        <td>${(p.mem_kb/1024).toFixed(1)} MB</td>
-        <td>--</td>
-        <td><span class="badge ok">running</span></td>
-        <td><button class="btn-sm" style="color:var(--red)">중지</button></td>
-      </tr>`));
-    }
-  });
-  if (rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px">서버 미등록</td></tr>';
-    return;
-  }
-  tbody.innerHTML = rows.join('');
-  renderProcessChart();
-}
-
-function renderProcessChart() {
-  const ctx = document.getElementById('proc-cpu-chart');
-  if (!ctx) return;
-  destroyChart('proc-cpu');
-  const all = [];
-  state.devices.filter(d => d.type === 'server').forEach(d => {
-    (getLive(d)?.metrics?.processes || []).forEach(p =>
-      all.push({ label:`${d.name}:${p.name}`, cpu: p.cpu_centisec/100 })
-    );
-  });
-  if (all.length === 0) { chartInstances['proc-cpu'] = makeEmptyChart(ctx, 'CPU'); return; }
-  all.sort((a,b) => b.cpu-a.cpu);
-  const top = all.slice(0,8);
-  chartInstances['proc-cpu'] = new Chart(ctx, {
-    type:'bar',
-    data:{ labels:top.map(p=>p.label), datasets:[{ label:'CPU(s)', data:top.map(p=>p.cpu.toFixed(1)),
-      backgroundColor:top.map(p=>p.cpu>30?'rgba(239,68,68,0.6)':p.cpu>15?'rgba(245,158,11,0.6)':'rgba(34,197,94,0.6)'), borderRadius:3 }] },
-    options:{responsive:true,maintainAspectRatio:true,plugins:{legend:{display:false}},
-      scales:{x:{ticks:{color:'#8b949e',font:{size:9}},grid:{color:'#1e2a3a'}},y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#1e2a3a'}}}}
-  });
+  return window.SoftwareInventory.render();
 }
 
 // ===== SECURITY =====

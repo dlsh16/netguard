@@ -1,6 +1,8 @@
 ﻿# NetGuard SNMP Dashboard
 # Rocky Linux 설치 및 운영 메뉴얼
 
+> 2026-11-07 / v1.2.63 추가: [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 Rocky 서버 패치 및 에이전트 갱신 절차를 적용한다. 새 DB 테이블은 서비스 시작 시 추가하며 기존 DB/설정은 초기화하지 않는다. 서버 패치 후 대상 에이전트도 갱신해야 한다.
+
 > 대상 OS: Rocky Linux 8.x / 9.x (x86_64)
 > 작성일: 2026-05-08 | 버전: 1.0.0
 

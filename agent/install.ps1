@@ -220,9 +220,14 @@ if ($NssmPath) {
 }
 Write-Step "Agent mode: $AgentMode"
 
+foreach ($required in @($AgentScript, 'software_inventory.ps1', 'software_inventory.py')) {
+    if (-not (Test-Path -LiteralPath (Join-Path $ScriptDir $required) -PathType Leaf)) {
+        throw "Required agent file missing: $required. Extract the complete agent package first."
+    }
+}
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $ScriptDir $AgentScript) -Destination $InstallDir -Force
-foreach ($helper in @("restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
+foreach ($helper in @("software_inventory.ps1", "software_inventory.py", "restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
     $src = Join-Path $ScriptDir $helper
     if (Test-Path $src) {
         Copy-Item -LiteralPath $src -Destination $InstallDir -Force
@@ -238,6 +243,7 @@ $config = @{
     device_type = $DeviceType
     location = $Location
     log_file = (Join-Path $InstallDir "agent.log")
+    software_inventory = @{ enabled = $true; interval_hours = 6; tomcat_homes = @(); extra_software = @() }
 }
 $config | ConvertTo-Json -Depth 8 | Out-File -FilePath (Join-Path $InstallDir "agent_config.json") -Encoding UTF8
 Write-Step "agent_config.json created" "Green"

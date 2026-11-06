@@ -1,5 +1,7 @@
 # NetGuard Agent - Windows 설치 매뉴얼
 
+> 2026-11-07 / v1.2.63: 설치 소프트웨어/실행 파일/Tomcat 인벤토리 수집을 추가했다. 기존 설치는 재설치 대신 [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 4개 파일 교체 절차를 사용해 설정을 보존한다. 새 보조 파일 software_inventory.ps1/.py를 반드시 함께 배포한다.
+
 ## 개요
 
 NetGuard Agent는 모니터링 대상 Windows 서버에 설치하여 CPU·메모리·디스크·네트워크 지표를 NetGuard 서버로 전송합니다.  

@@ -14,6 +14,7 @@ $DefaultConfig = @{
     hostname    = $env:COMPUTERNAME
     device_type = "server"
     location    = ""
+    software_inventory = @{ enabled = $true; interval_hours = 6; tomcat_homes = @(); extra_software = @() }
     security_checks = @{
         enabled = $false
         interval_hours = 24
@@ -23,7 +24,7 @@ $DefaultConfig = @{
 
 function Load-Config {
     if (Test-Path $ConfigFile) {
-        $raw = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+        $raw = Get-Content $ConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
         foreach ($key in @($DefaultConfig.Keys)) {
             if ($null -ne $raw.$key -and $raw.$key -ne "") {
                 $DefaultConfig[$key] = $raw.$key
@@ -280,6 +281,41 @@ function Invoke-SecurityChecks {
 }
 
 # ── 메인 루프 ──────────────────────────────────────────────────────────────────
+$script:SoftwareInventoryJob = $null
+$script:SoftwareInventoryStarted = [DateTime]::MinValue
+$script:NextSoftwareInventoryAt = [DateTime]::MinValue
+
+function Update-SoftwareInventoryWorker {
+    param($Config)
+    $options = $Config.software_inventory
+    if ($null -ne $options.enabled -and -not $options.enabled) { return }
+    if ($script:SoftwareInventoryJob) {
+        $job = $script:SoftwareInventoryJob
+        if ($job.State -eq 'Running' -and ((Get-Date) - $script:SoftwareInventoryStarted).TotalSeconds -lt 180) { return }
+        if ($job.State -eq 'Running') { Stop-Job $job; Write-Log 'WARN' 'Software inventory worker timed out' }
+        if ($job.State -eq 'Completed') {
+            foreach ($line in @(Receive-Job $job -ErrorAction SilentlyContinue)) { Write-Log 'INFO' ([string]$line) }
+            $hours = if ($options.interval_hours) { [double]$options.interval_hours } else { 6 }
+            $script:NextSoftwareInventoryAt = (Get-Date).AddHours([math]::Max(1, [math]::Min(168, $hours)))
+        } else {
+            Write-Log 'WARN' 'Software inventory worker failed; check helper files, server API, and collection permissions'
+            $script:NextSoftwareInventoryAt = (Get-Date).AddMinutes(5)
+        }
+        Remove-Job $job -Force
+        $script:SoftwareInventoryJob = $null
+    }
+    if ((Get-Date) -lt $script:NextSoftwareInventoryAt) { return }
+    $helper = Join-Path $ScriptDir 'software_inventory.ps1'
+    if (-not (Test-Path -LiteralPath $helper)) {
+        Write-Log 'WARN' 'Software inventory helper missing; update all agent files'
+        $script:NextSoftwareInventoryAt = (Get-Date).AddHours(1)
+        return
+    }
+    $script:SoftwareInventoryJob = Start-Job -ScriptBlock { param($path) & $path -Send } -ArgumentList $helper
+    $script:SoftwareInventoryStarted = Get-Date
+    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.63)'
+}
+
 $cfg = Load-Config
 $cfg.server_url = Normalize-ServerUrl $cfg.server_url
 
@@ -335,6 +371,7 @@ while ($true) {
     } catch {
         Write-Log "WARN" "Send failed: $_"
     }
+    try { Update-SoftwareInventoryWorker $cfg } catch { Write-Log 'WARN' "Software inventory worker: $_" }
     $elapsed = ((Get-Date) - $start).TotalSeconds
     $sleep   = [math]::Max(1, $cfg.interval - $elapsed)
     Start-Sleep -Seconds ([int]$sleep)

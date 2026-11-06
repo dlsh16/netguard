@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from database import get_db_pool
 from event_utils import save_event_once
+from software_inventory import SoftwareReport, save_inventory
 
 logger = logging.getLogger("netguard.agent")
 
@@ -294,6 +295,20 @@ async def receive_metrics(req: MetricsRequest, x_agent_key: Optional[str] = Head
         f"cpu={req.cpu_pct}% mem={req.mem_pct}% disk={req.disk_max_pct}%"
     )
     return {"status": "ok", "device_id": device_id}
+
+
+# ── /api/agent/software ───────────────────────────────────────────────────────
+@router.post('/software', summary='Agent software inventory snapshot')
+async def receive_software(req: SoftwareReport, x_agent_key: Optional[str] = Header(None)):
+    _verify(x_agent_key)
+    pool = await get_db_pool()
+    async with pool.acquire() as conn:
+        device_id = await conn.fetchval("SELECT id FROM devices WHERE ip_address=$1::inet AND type='server' AND enabled=TRUE", str(req.ip_address))
+        if device_id is None:
+            raise HTTPException(409, 'Register this server before sending software inventory')
+        result = await save_inventory(conn, device_id, req)
+    logger.info('[AGENT] Software inventory: device=%s status=%s items=%s', device_id, result['status'], result.get('items', 0))
+    return result
 
 
 # ── /api/agent/security-report ────────────────────────────────────────────────

@@ -19,6 +19,7 @@ from config import settings
 from collectors.snmp_collector import SNMPCollector
 from collectors.env_collector import EnvCollector
 from api.routes import router as api_router
+from api.software_routes import router as software_router
 from api.agent_routes import get_agent_live_ips, get_agent_live_results, router as agent_router
 from alerts.alert_manager import AlertManager
 from security.cve_checker import CVEChecker
@@ -85,6 +86,7 @@ if FRONTEND_DIR.exists():
 app.include_router(auth_router,  prefix="/api")
 app.include_router(api_router,   prefix="/api")
 app.include_router(agent_router)
+app.include_router(software_router)
 
 # Global services
 snmp_collector: Optional[SNMPCollector] = None

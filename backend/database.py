@@ -89,6 +89,9 @@ async def _init_db_locked(conn):
         except Exception as e:
             logger.warning(f"Device SNMP v3 column migration failed ({column}): {e}")
 
+    from software_inventory import init_inventory_schema
+    await init_inventory_schema(conn)
+
     # --- Metrics (hypertable for time-series) ---
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS metrics (

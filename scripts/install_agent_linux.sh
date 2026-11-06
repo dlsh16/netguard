@@ -25,8 +25,8 @@ echo -e "${CYAN}=== NetGuard Agent Linux 설치 ===${NC}"
 echo ""
 
 # ── 입력 수집 ──────────────────────────────────────────────────────────────────
-read -rp "NetGuard 서버 URL [http://10.60.8.187:8000]: " INPUT_URL
-SERVER_URL="${INPUT_URL:-http://10.60.8.187:8000}"
+read -rp "NetGuard 서버 URL [http://10.60.8.186:8000]: " INPUT_URL
+SERVER_URL="${INPUT_URL:-http://10.60.8.186:8000}"
 
 read -rp "API Key          [netguard-agent-key-2026]: " INPUT_KEY
 API_KEY="${INPUT_KEY:-netguard-agent-key-2026}"
@@ -54,11 +54,12 @@ info "Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
 # ── 파일 설치 ──────────────────────────────────────────────────────────────────
 mkdir -p "$INSTALL_DIR"
 
-if [[ -f "$AGENT_SRC/netguard_agent.py" ]]; then
+if [[ -f "$AGENT_SRC/netguard_agent.py" && -f "$AGENT_SRC/software_inventory.py" ]]; then
     cp "$AGENT_SRC/netguard_agent.py" "$INSTALL_DIR/"
+    cp "$AGENT_SRC/software_inventory.py" "$INSTALL_DIR/"
     ok "netguard_agent.py 복사 완료"
 else
-    echo "[ERROR] $AGENT_SRC/netguard_agent.py 를 찾을 수 없습니다." && exit 1
+    echo "[ERROR] netguard_agent.py/software_inventory.py 파일을 모두 반입해야 합니다." && exit 1
 fi
 
 # ── 설정 파일 작성 ────────────────────────────────────────────────────────────
@@ -73,7 +74,8 @@ cat > "$CONFIG_FILE" << JSON
     "hostname":    "${HOSTNAME_VAL}",
     "device_type": "${DEVICE_TYPE}",
     "location":    "${LOCATION}",
-    "log_file":    "${INSTALL_DIR}/agent.log"
+    "log_file":    "${INSTALL_DIR}/agent.log",
+    "software_inventory": {"enabled": true, "interval_hours": 6, "tomcat_homes": [], "extra_software": []}
 }
 JSON
 chmod 640 "$CONFIG_FILE"

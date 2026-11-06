@@ -1,5 +1,7 @@
 # NetGuard Agent - Linux 설치 매뉴얼
 
+> 2026-11-07 / v1.2.63: RPM/DEB/프로세스/Tomcat 인벤토리 수집을 추가했다. 기존 설치는 [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 코드 교체 절차로 agent_config.json을 보존한다. software_inventory.py를 반드시 함께 배포한다. 인터넷/pip 추가 설치는 필요하지 않다.
+
 ## 개요
 
 NetGuard Agent Python 버전은 Linux 서버에 설치하여 CPU·메모리·디스크·네트워크 지표를 NetGuard 서버로 전송합니다.  

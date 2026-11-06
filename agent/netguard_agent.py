@@ -29,6 +29,7 @@ DEFAULT_CONFIG = {
     "device_type": "server",
     "location":    "",
     "log_file":    "",
+    "software_inventory": {"enabled": True, "interval_hours": 6, "tomcat_homes": [], "extra_software": []},
     "security_checks": {
         "enabled": False,
         "interval_hours": 24,
@@ -36,9 +37,9 @@ DEFAULT_CONFIG = {
     },
 }
 
-def load_config():
-    if CONFIG_FILE.exists():
-        with open(CONFIG_FILE, encoding="utf-8") as f:
+def load_config(path=CONFIG_FILE):
+    if Path(path).exists():
+        with open(path, encoding="utf-8-sig") as f:
             cfg = json.load(f)
         merged = {**DEFAULT_CONFIG, **cfg}
     else:
@@ -494,6 +495,47 @@ def run_security_checks(cfg: dict, base: str, key: str, ip: str, logger):
                 logger.error("Report upload failed (%s): %s", report, e)
 
 # ── 메인 루프 ─────────────────────────────────────────────────────────────────
+class SoftwareInventoryWorker:
+    def __init__(self, cfg, logger):
+        self.options = cfg.get('software_inventory') or {}
+        self.logger = logger
+        self.process = None
+        self.started = 0.0
+        self.next_run = 0.0
+
+    def tick(self):
+        if self.options.get('enabled', True) is False:
+            return
+        now = time.monotonic()
+        if self.process is not None:
+            if self.process.poll() is None:
+                if now - self.started < 180:
+                    return
+                self.process.kill()
+                self.logger.warning('Software inventory worker timed out')
+            stdout, stderr = self.process.communicate(timeout=5)
+            if self.process.returncode == 0:
+                self.logger.info((stdout or b'Software inventory completed').decode('utf-8', errors='replace').strip()[:300])
+                hours = max(1.0, min(168.0, float(self.options.get('interval_hours') or 6)))
+                self.next_run = now + hours * 3600
+            else:
+                self.logger.warning('Software inventory failed: %s', (stderr or b'worker error').decode('utf-8', errors='replace').strip()[:300])
+                self.next_run = now + 300
+            self.process = None
+        if now < self.next_run:
+            return
+        worker = SCRIPT_DIR / 'software_inventory.py'
+        if not worker.is_file():
+            self.logger.warning('Software inventory helper missing; update all agent files')
+            self.next_run = now + 3600
+            return
+        self.process = subprocess.Popen([sys.executable, str(worker), '--config', str(CONFIG_FILE), '--send'],
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(SCRIPT_DIR),
+                                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0)
+        self.started = now
+        self.logger.info('Software inventory started in background (agent 1.2.63)')
+
+
 def main():
     cfg    = load_config()
     logger = setup_logging(cfg.get("log_file", ""))
@@ -525,6 +567,7 @@ def main():
     collect()
     time.sleep(2)
     next_check_at = 0.0
+    software_worker = SoftwareInventoryWorker(cfg, logger)
 
     while True:
         start = time.time()
@@ -569,6 +612,10 @@ def main():
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
 
+        try:
+            software_worker.tick()
+        except Exception as exc:
+            logger.warning('Software inventory worker: %s', str(exc)[:200])
         elapsed = time.time() - start
         sleep_sec = max(1, cfg["interval"] - elapsed)
         time.sleep(sleep_sec)

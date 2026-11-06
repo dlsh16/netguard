@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.62 | 최종 업데이트: 2026-11-07
+> 버전: 1.2.63 | 최종 업데이트: 2026-11-07
 
 ---
 
@@ -15,6 +15,7 @@
 | **NVD 반영 후 첫 접속 지연 개선** | [NVD_PERFORMANCE_GUIDE.md](NVD_PERFORMANCE_GUIDE.md) |
 | **취약점 검색 / 패치 적용** | [VULNERABILITY_SEARCH_GUIDE.md](VULNERABILITY_SEARCH_GUIDE.md) |
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
+| **소프트웨어 검색 / 서버·에이전트 갱신** | [SOFTWARE_INVENTORY_GUIDE.md](SOFTWARE_INVENTORY_GUIDE.md) |
 
 > 아래 내용은 공통 개요입니다. 실제 설치는 위 플랫폼별 메뉴얼을 따르세요.
 
@@ -593,6 +594,14 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.63 (2026-11-07) - 서버별 소프트웨어 인벤토리 검색
+
+- 프로세스 모니터링 메뉴를 소프트웨어 검색으로 전환: 서버명/IP/소프트웨어 이름/버전 네 열, 조합 필터, 저장 검색, 상세 팝업, CSV, 서버 측 페이지 처리. 서버 상세의 기존 프로세스 지표는 유지한다.
+- Windows 설치 레지스트리/실행 파일과 Linux RPM/DEB/프로세스 및 Tomcat 메타데이터를 별도 백그라운드 작업으로 기본 6시간마다 수집한다. 신규 외부 의존성이나 CVE 연동은 없다.
+- 기존 DB에 인벤토리/수집 상태 테이블만 추가하고 사용자·장비·설정은 보존한다. 실패한 출처는 이전 목록을 보존하며 미확인 버전을 추정하지 않는다.
+- 서버 패치 후 에이전트도 갱신해야 한다. Windows/Rocky 설치·설정 보존 갱신·운영·원복은 [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)에 기록했다.
+- 변경 파일: `backend/software_inventory.py`, `backend/api/software_routes.py`, `backend/api/agent_routes.py`, `backend/database.py`, `backend/app.py`, `frontend/index.html`, `frontend/js/dashboard.js`, `frontend/js/software-inventory.js`, `frontend/css/software-inventory.css`, `agent/netguard_agent.ps1/.py`, `agent/software_inventory.ps1/.py`, `agent/install.ps1`, `scripts/install_agent_linux.sh`, 미리보기·테스트·플랫폼별 설치 문서.
 
 ### v1.2.62 (2026-11-07) - NVD 최초 로딩과 대시보드 초기화 분리
 
