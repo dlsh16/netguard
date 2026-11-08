@@ -1,6 +1,8 @@
 ﻿# NetGuard SNMP Dashboard
 # Rocky Linux 설치 및 운영 메뉴얼
 
+> 2026-11-08 / v1.2.66 추가: Linux Agent 신규 설치 시 NetGuard에 표시할 서버명을 입력할 수 있다. 빈 입력은 OS 호스트명, 입력값은 표시명으로 사용한다. OS 이름은 바꾸지 않으며 기존 업데이트는 저장된 이름을 보존한다. [신규 설치 및 기존 장비 이름 변경](agent_install_linux.md)을 참고한다.
+
 > 2026-11-08 / v1.2.65 추가: 대상 장비 Agent는 [Linux Agent 설치·운영 가이드](agent_install_linux.md)를 사용한다. 설치 전 `--check`, 기존 설정 보존 갱신은 `--update`를 사용하며 이번 수정에 중앙 NetGuard 서버/DB 재설치는 필요 없다.
 
 > 2026-11-07 / v1.2.63 추가: [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 Rocky 서버 패치 및 에이전트 갱신 절차를 적용한다. 새 DB 테이블은 서비스 시작 시 추가하며 기존 DB/설정은 초기화하지 않는다. 서버 패치 후 대상 에이전트도 갱신해야 한다.

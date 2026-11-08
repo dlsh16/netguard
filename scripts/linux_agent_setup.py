@@ -43,9 +43,12 @@ def new_config(env):
         interval = int(env['NG_INTERVAL'])
     except ValueError:
         raise ValueError('interval must be an integer')
+    hostname = env.get('NG_HOSTNAME', '').strip() or socket.gethostname()
+    if not hostname or len(hostname) > 100 or not hostname.isprintable():
+        raise ValueError('NetGuard display name must be 1-100 printable characters')
     return validate_config({
         'server_url': url.rstrip('/'), 'api_key': env['NG_KEY'], 'interval': interval,
-        'hostname': socket.gethostname(), 'device_type': env['NG_TYPE'],
+        'hostname': hostname, 'device_type': env['NG_TYPE'],
         'location': env['NG_LOCATION'], 'log_file': '/opt/netguard-agent/agent.log',
         'software_inventory': {'enabled': True, 'interval_hours': 6, 'tomcat_homes': [], 'extra_software': []},
     })

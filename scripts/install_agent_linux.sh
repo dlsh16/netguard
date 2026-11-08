@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NetGuard Linux Agent 1.2.65. Offline: no dnf/apt/pip or network downloads.
+# NetGuard Linux Agent installer 1.2.66. Offline: no dnf/apt/pip or network downloads.
 set -euo pipefail
 umask 077
 
@@ -81,10 +81,12 @@ if [[ $MODE == install ]]; then
     read -r -s -p 'API key [netguard-agent-key-2026]: ' INPUT_KEY
     printf '\n'
     read -r -p 'Collection interval seconds [60]: ' INPUT_INTERVAL
+    DEFAULT_HOSTNAME=$("$PYTHON_BIN" -c 'import socket; print(socket.gethostname())')
+    read -r -p "NetGuard display name [$DEFAULT_HOSTNAME]: " INPUT_HOSTNAME
     read -r -p 'Device type [server]: ' INPUT_TYPE
     read -r -p 'Location []: ' INPUT_LOC
     NG_URL="${INPUT_URL:-http://10.60.8.186:8000}" NG_KEY="${INPUT_KEY:-netguard-agent-key-2026}" \
-    NG_INTERVAL="${INPUT_INTERVAL:-60}" NG_TYPE="${INPUT_TYPE:-server}" NG_LOCATION="$INPUT_LOC" \
+    NG_INTERVAL="${INPUT_INTERVAL:-60}" NG_HOSTNAME="$INPUT_HOSTNAME" NG_TYPE="${INPUT_TYPE:-server}" NG_LOCATION="$INPUT_LOC" \
         "$PYTHON_BIN" -B "$HELPER" config > "$STAGE/agent_config.json"
     unset INPUT_KEY
     "$PYTHON_BIN" -B "$HELPER" unit "$PYTHON_BIN" > "$STAGE/netguard-agent.service"

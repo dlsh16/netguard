@@ -1,9 +1,10 @@
 # NetGuard Agent Linux 설치 및 운영 매뉴얼
 
-버전: v1.2.65 / 업데이트: 2026-11-08
+버전: v1.2.66 / 업데이트: 2026-11-08
 
 ## 변경 내용
 
+- v1.2.66: 신규 설치 시 NetGuard 표시 서버명 입력을 추가했다. 빈 입력은 OS 호스트명을 사용하고, 한글/공백을 포함한 최대 100자를 저장한다. OS 호스트명은 변경하지 않는다. 기존 `--update`는 저장된 이름을 그대로 보존한다.
 - 설치 전 파일/문법/Python/설정 검사 추가. `--check`는 설치 파일·계정·서비스를 변경하지 않는다.
 - 기존 설치에서 일반 설치를 다시 실행하면 중단한다. `--update`는 설정 내용과 기존 서비스 파일, 부팅 자동 시작 활성화 상태를 보존하고 코드만 갱신한다.
 - `restart_agent.sh`를 함께 설치한다. 시작/재시작 후 비활성 상태는 실패 종료 코드로 전달한다.
@@ -28,7 +29,7 @@
 
 ## 패키지 및 점검
 
-`NetGuard-Agent-Linux-v1.2.65.zip`을 반입하고 `/tmp/netguard-agent-v1265`처럼 별도 폴더에 해제한다. 운영 `/opt/netguard-agent`에 ZIP 전체를 직접 덮어쓰지 않는다.
+`NetGuard-Agent-Linux-v1.2.66.zip`을 반입하고 `/tmp/netguard-agent-v1266`처럼 별도 폴더에 해제한다. 운영 `/opt/netguard-agent`에 ZIP 전체를 직접 덮어쓰지 않는다. 이번 버전은 설치기 변경이며 수집 코드/보고 버전은 v1.2.65 그대로다.
 
 ```text
 agent/
@@ -44,8 +45,8 @@ docs/
 
 ```bash
 python3 --version
-python3 -m zipfile -e /tmp/NetGuard-Agent-Linux-v1.2.65.zip /tmp/netguard-agent-v1265
-cd /tmp/netguard-agent-v1265
+python3 -m zipfile -e /tmp/NetGuard-Agent-Linux-v1.2.66.zip /tmp/netguard-agent-v1266
+cd /tmp/netguard-agent-v1266
 sudo bash scripts/install_agent_linux.sh --check
 ```
 
@@ -65,7 +66,17 @@ sudo env NETGUARD_AGENT_PYTHON=/usr/bin/python3.9 bash scripts/install_agent_lin
 sudo bash scripts/install_agent_linux.sh
 ```
 
-서버 URL, API 키, 수집 간격, 장비 유형, 위치를 입력한다. URL 기본값은 `http://10.60.8.186:8000`이다. API 키는 화면에 표시하지 않으며 중앙 서버의 실제 키와 일치해야 한다. 신규 생성 파일에는 기본 소프트웨어 수집 6시간 주기를 포함한다. 보안 점검 스크립트 실행은 별도 설정이며 자동 활성화하지 않는다.
+서버 URL, API 키, 수집 간격, **NetGuard 표시 서버명**, 장비 유형, 위치를 입력한다. URL 기본값은 `http://10.60.8.186:8000`이다. API 키는 화면에 표시하지 않으며 중앙 서버의 실제 키와 일치해야 한다. 신규 생성 파일에는 기본 소프트웨어 수집 6시간 주기를 포함한다. 보안 점검 스크립트 실행은 별도 설정이며 자동 활성화하지 않는다.
+
+```text
+Collection interval seconds [60]:
+NetGuard display name [rocky-host01]: MBCO-LINUX-DB01
+Device type [server]:
+```
+
+표시명은 `/opt/netguard-agent/agent_config.json`의 `hostname`에 저장되어 장비 등록, 메트릭, 소프트웨어 인벤토리에 동일하게 전달된다. Enter 또는 공백만 입력하면 현재 OS 호스트명을 사용한다. 앞뒤 공백은 제거하며, 한글/공백/따옴표/역슬래시는 JSON으로 안전하게 저장한다. 최대 100자이며 중간 탭/줄바꿈 등 제어 문자는 허용하지 않는다. 다른 장비가 이미 사용하는 이름을 재사용하지 말고 서버별 고유 이름을 지정한다.
+
+이 기능은 NetGuard 표시명만 지정하며 `hostnamectl`, `/etc/hostname`, DNS, 서버 IP는 변경하지 않는다.
 
 설치 위치는 `/opt/netguard-agent`, 서비스명은 `netguard-agent`, 설정은 `agent_config.json`이다. 신규 서비스는 `systemctl enable`로 부팅 자동 시작을 설정한다. 터미널/SSH 연결을 닫아도 systemd가 에이전트를 유지한다.
 
@@ -117,6 +128,25 @@ sudo systemctl is-enabled netguard-agent
 
 ## 운영 확인
 
+### 이미 설치한 장비의 표시명 변경
+
+서버명 변경만을 위해 일반 설치를 다시 실행하지 않는다. 기존 JSON을 관리자 전용 위치에 백업한 다음 아래 파일의 `hostname` 값만 수정한다. API 키/URL/수집 주기/점검 설정은 그대로 둔다.
+
+```bash
+sudoedit /opt/netguard-agent/agent_config.json
+```
+
+예: 기존 `"hostname": "rocky-host01"`을 `"hostname": "MBCO-LINUX-DB01"`로 변경한다. 중복되지 않는 최대 100자 이름을 사용하고 JSON의 쉼표/따옴표를 유지한다. 파일 전체를 hostname 한 항목만으로 대체하지 않는다. 변경 후 에이전트만 재시작한다.
+
+```bash
+sudo systemctl restart netguard-agent
+sudo journalctl -u netguard-agent -n 30 --no-pager
+```
+
+정상 등록 후 NetGuard 장비 목록과 소프트웨어 검색의 서버명을 확인한다. 중앙 서버 재시작은 필요 없다. `--update`는 이름 변경 명령이 아니며 기존 `hostname`을 보존한다.
+
+### 기동 및 수집 상태
+
 ```bash
 sudo /opt/netguard-agent/restart_agent.sh
 sudo systemctl status netguard-agent --no-pager -l
@@ -151,7 +181,7 @@ sudo journalctl -u netguard-agent -n 50 --no-pager
 
 ## 검증 범위
 
-- Rocky 8/Python 3.6.8, Rocky 9/Python 3.9.18에서 각각 14개 테스트 통과. 개발 PC 전체 회귀는 70개 통과, Linux 컨테이너 전용 8개는 Windows에서 제외 후 위 컨테이너에서 별도 실행했다.
+- v1.2.66은 Rocky 8/Python 3.6.8, Rocky 9/Python 3.9.18에서 표시명 검사를 포함해 각각 17개 테스트를 통과했다. 기본값, 한글/특수문자 저장, 100자 제한, OS 이름 불변, 업데이트 시 이름 보존, 등록/메트릭/인벤토리의 같은 이름 전송을 검증했다.
 - 네트워크 차단 Rocky Linux 컨테이너에서 설치/업데이트/실패 처리 및 실제 ngagent 파일 권한 검사를 수행했다.
 - 실제 systemd-analyze로 신규 unit 문법을 검증했다. 테스트의 systemctl은 대역으로 호출/실패 분기를 검증하며 컨테이너에서 실제 OS 부팅을 검증한 것은 아니다.
 - ngagent로 Python 에이전트를 실행하여 loopback 테스트 서버로 등록/메트릭/RPM 인벤토리를 전송했다. 운영 NetGuard 서버로는 전송하지 않았다.

@@ -86,7 +86,7 @@ PowerShell 모드도 Python 모드도 보조 파일을 함께 배포한다. 최�
 
 ## Rocky Linux 에이전트 갱신
 
-v1.2.65부터 `NetGuard-Agent-Linux-v1.2.65.zip`과 [Linux Agent 설치·운영 문서](agent_install_linux.md)의 `--check`/`--update`를 우선 사용한다. 이 절차는 restart_agent.sh도 함께 배포하고 설정/unit/자동 시작 상태를 보존한다. 아래는 이전 v1.2.63의 수동 코드 교체 기록이다.
+최신 `NetGuard-Agent-Linux-v1.2.66.zip`과 [Linux Agent 설치·운영 문서](agent_install_linux.md)의 `--check`/`--update`를 우선 사용한다. 이 절차는 restart_agent.sh도 함께 배포하고 설정/unit/자동 시작 상태를 보존한다. v1.2.66 신규 설치는 표시 서버명을 입력받으며 인벤토리에도 같은 이름을 전달한다. 기존 업데이트는 이름을 바꾸지 않는다. 아래는 이전 v1.2.63의 수동 코드 교체 기록이다.
 
 대상 서버에서 기존 에이전트 경로 `/opt/netguard-agent`, 계정 `ngagent`, 서비스 `netguard-agent`를 확인한다. ZIP을 별도 임시 경로에 풀고 코드만 교체한다. 운영 에이전트 폴더에 전체 ZIP을 직접 풀지 않는다.
 

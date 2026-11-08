@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.65 | 최종 업데이트: 2026-11-08
+> 버전: 1.2.66 | 최종 업데이트: 2026-11-08
 
 ---
 
@@ -596,6 +596,13 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.66 (2026-11-08) - Linux Agent 설치 시 표시 서버명 지정
+
+- 신규 설치 질문에 `NetGuard display name [현재 OS 호스트명]`을 추가했다. 빈 입력은 기존 OS 호스트명을 사용하며 한글을 포함한 최대 100자의 표시명을 설정 JSON의 hostname에 저장한다.
+- OS 호스트명은 변경하지 않는다. 등록/메트릭/소프트웨어 인벤토리는 기존 전송 로직으로 같은 이름을 사용한다. 기존 설치 업데이트는 저장된 이름을 보존하며 이름만 바꾸는 운영 절차도 문서화했다.
+- 중앙 서버/API/DB 및 에이전트 수집 코드는 변경하지 않았다. [Linux 설치·운영 문서](agent_install_linux.md)에 신규 질문, 기존 장비 변경 방법, 확인 절차를 추가했다.
+- 변경 파일: `scripts/install_agent_linux.sh`, `scripts/linux_agent_setup.py`, `tests/test_linux_agent_setup.py`, `docs/agent_install_linux.md`, `docs/INSTALL_ROCKY.md`, `docs/SOFTWARE_INVENTORY_GUIDE.md`, `docs/GUIDE.md`.
 
 ### v1.2.65 (2026-11-08) - Linux Agent 설치 및 오프라인 실행 점검
 

@@ -24,6 +24,24 @@ spec.loader.exec_module(setup)
 
 
 class LinuxSetupTests(unittest.TestCase):
+    def test_display_name_default_custom_and_json_roundtrip(self):
+        env = dict(NG_URL='10.60.8.186:8000', NG_KEY='fixture', NG_INTERVAL='60', NG_TYPE='server', NG_LOCATION='')
+        with patch.object(setup.socket, 'gethostname', return_value='linux-os-host'):
+            self.assertEqual(setup.new_config(env)['hostname'], 'linux-os-host')
+            env['NG_HOSTNAME'] = '   '
+            self.assertEqual(setup.new_config(env)['hostname'], 'linux-os-host')
+            name = '\uC11C\uBC84 DB "A" \\ $(not-a-command)'
+            env['NG_HOSTNAME'] = '  ' + name + '  '
+            self.assertEqual(json.loads(json.dumps(setup.new_config(env)))['hostname'], name)
+
+    def test_display_name_length_and_control_characters(self):
+        env = dict(NG_URL='http://192.0.2.1:8000', NG_KEY='fixture', NG_INTERVAL='60', NG_TYPE='server', NG_LOCATION='')
+        env['NG_HOSTNAME'] = 'A' * 100
+        self.assertEqual(setup.new_config(env)['hostname'], env['NG_HOSTNAME'])
+        for name in ('A' * 101, 'server\tname', 'server\nname', 'server\x00name', 'server\x7fname'):
+            env['NG_HOSTNAME'] = name
+            self.assertRaises(ValueError, setup.new_config, env)
+
     def test_config_escapes_unicode_quotes_and_backslashes(self):
         env = dict(NG_URL='10.60.8.186:8000/', NG_KEY='test-"\\key', NG_INTERVAL='60', NG_TYPE='server', NG_LOCATION='\uC11C\uBC84\uC2E4 "A" \\ rack')
         config = json.loads(json.dumps(setup.new_config(env)))
@@ -130,15 +148,15 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
 
     def run_installer(self, *args, **kwargs):
         return subprocess.run(['bash', str(self.source / 'scripts/install_agent_linux.sh')] + list(args),
-                              input=kwargs.get('input', '\n\n60\nserver\nfixture "A" \\ rack\n'),
+                              input=kwargs.get('input', '\n\n60\n\nserver\nfixture "A" \\ rack\n'),
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
                               env=self.env, timeout=30)
 
     def calls_list(self):
         return [json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
 
-    def install(self):
-        result = self.run_installer()
+    def install(self, **kwargs):
+        result = self.run_installer(**kwargs)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return result
 
@@ -154,6 +172,7 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
     def test_install_files_permissions_unit_and_enable(self):
         self.install()
         config = json.loads((self.target / 'agent_config.json').read_text())
+        self.assertEqual(config['hostname'], socket.gethostname())
         self.assertEqual(config['location'], 'fixture "A" \\ rack')
         self.assertTrue((self.target / 'restart_agent.sh').stat().st_mode & 0o100)
         self.assertEqual((self.target / 'agent_config.json').stat().st_mode & 0o777, 0o640)
@@ -167,8 +186,12 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_update_preserves_config_unit_and_disabled_state_with_backup(self):
-        self.install()
+        original_os_name = socket.gethostname()
+        custom_name = '\uC11C\uBC84 DB "Primary" \\ Rack-1'
+        self.install(input='\n\n60\n' + custom_name + '\nserver\nfixture\n')
         cfg = self.target / 'agent_config.json'
+        self.assertEqual(json.loads(cfg.read_text())['hostname'], custom_name)
+        self.assertEqual(socket.gethostname(), original_os_name)
         content = cfg.read_bytes().replace(b'"interval": 60', b'"interval": 17')
         cfg.write_bytes(content)
         unit = self.unit.read_bytes()
@@ -194,8 +217,15 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
         self.assertFalse(self.calls_list())
 
     def test_invalid_input_stops_before_install_and_service_changes(self):
-        result = self.run_installer(input='\n\ninvalid\nserver\nlocation\n')
+        result = self.run_installer(input='\n\ninvalid\n\nserver\nlocation\n')
         self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(self.target.exists())
+        self.assertNotIn(['restart', 'netguard-agent'], self.calls_list())
+
+    def test_invalid_display_name_stops_before_install(self):
+        result = self.run_installer(input='\n\n60\n' + ('A' * 101) + '\nserver\nlocation\n')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('display name', result.stderr)
         self.assertFalse(self.target.exists())
         self.assertNotIn(['restart', 'netguard-agent'], self.calls_list())
 
@@ -222,7 +252,8 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
         self.assertIn('Restart failed', result.stderr)
 
     def test_real_python36_metrics_and_inventory_send_as_service_account(self):
-        self.install()
+        custom_name = '\uC11C\uBC84-LINUX-DB01'
+        self.install(input='\n\n60\n' + custom_name + '\nserver\nfixture\n')
         reports = []
         class Handler(http.server.BaseHTTPRequestHandler):
             def log_message(self, *args):
@@ -257,6 +288,7 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
             self.assertIn('rpm', inventory['complete_sources'])
             self.assertTrue(inventory['items'])
             self.assertTrue(all(body['ip_address'] == '127.0.0.1' for path, body in reports))
+            self.assertTrue(all(body['hostname'] == custom_name for path, body in reports))
         finally:
             if process.poll() is None: os.killpg(process.pid, signal.SIGTERM)
             process.communicate(timeout=10)
