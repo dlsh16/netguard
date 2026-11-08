@@ -1,0 +1,4 @@
+ARG ROCKY_VERSION=9
+FROM rockylinux:${ROCKY_VERSION}
+# Preparation needs a package mirror; the tests themselves run with --network none.
+RUN dnf -y install systemd procps-ng && dnf clean all

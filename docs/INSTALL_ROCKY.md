@@ -1,6 +1,8 @@
 ﻿# NetGuard SNMP Dashboard
 # Rocky Linux 설치 및 운영 메뉴얼
 
+> 2026-11-08 / v1.2.65 추가: 대상 장비 Agent는 [Linux Agent 설치·운영 가이드](agent_install_linux.md)를 사용한다. 설치 전 `--check`, 기존 설정 보존 갱신은 `--update`를 사용하며 이번 수정에 중앙 NetGuard 서버/DB 재설치는 필요 없다.
+
 > 2026-11-07 / v1.2.63 추가: [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 Rocky 서버 패치 및 에이전트 갱신 절차를 적용한다. 새 DB 테이블은 서비스 시작 시 추가하며 기존 DB/설정은 초기화하지 않는다. 서버 패치 후 대상 에이전트도 갱신해야 한다.
 
 > 대상 OS: Rocky Linux 8.x / 9.x (x86_64)

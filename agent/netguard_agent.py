@@ -16,6 +16,7 @@ import sys
 import time
 from pathlib import Path
 from urllib import error, request
+from urllib.parse import urlsplit
 
 # ── 설정 ──────────────────────────────────────────────────────────────────────
 SCRIPT_DIR  = Path(__file__).parent.resolve()
@@ -378,15 +379,13 @@ def collect() -> dict:
     }
 
 # ── 로컬 IP 탐지 ──────────────────────────────────────────────────────────────
-def local_ip() -> str:
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
+def local_ip(server_url=None) -> str:
+    target = urlsplit(normalize_server_url(server_url or DEFAULT_CONFIG['server_url']))
+    port = target.port or (443 if target.scheme == 'https' else 80)
+    # UDP connect selects the local route without sending a packet.
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+        connection.connect((target.hostname, port))
+        return connection.getsockname()[0]
 
 # ── HTTP 전송 ─────────────────────────────────────────────────────────────────
 def post_json(url: str, data: dict, api_key: str, timeout: int = 10) -> dict:
@@ -467,8 +466,9 @@ def run_security_checks(cfg: dict, base: str, key: str, ip: str, logger):
                 expanded_command,
                 cwd=str(SCRIPT_DIR),
                 shell=isinstance(expanded_command, str),
-                capture_output=True,
-                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
                 timeout=int(item.get("timeout_sec") or 3600),
             )
             if completed.returncode != 0:
@@ -533,7 +533,7 @@ class SoftwareInventoryWorker:
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(SCRIPT_DIR),
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0)
         self.started = now
-        self.logger.info('Software inventory started in background (agent 1.2.64)')
+        self.logger.info('Software inventory started in background (agent 1.2.65)')
 
 
 def main():
@@ -548,7 +548,7 @@ def main():
     logger.info(f"  psutil  : {'available' if HAS_PSUTIL else 'not found (stdlib fallback)'}")
     logger.info(f"  Interval: {cfg['interval']}s")
 
-    ip = local_ip()
+    ip = local_ip(base)
 
     # 초기 장치 등록
     try:

@@ -105,11 +105,11 @@ class SoftwareCollectorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
                     self.assertIn(b'status=ok', result.stdout)
             self.assertEqual(len(reports), 2)
-            for endpoint, key, report in reports:
+            for (endpoint, key, report), version in zip(reports, ('1.2.64', '1.2.65')):
                 self.assertEqual(endpoint, '/api/agent/software')
                 self.assertEqual(key, 'fixture-only')
                 self.assertEqual(report['hostname'], 'fixture-agent')
-                self.assertEqual(report['agent_version'], '1.2.64')
+                self.assertEqual(report['agent_version'], version)
                 self.assertTrue(0 < len(report['items']) <= 10000)
                 self.assertNotIn('command_line', json.dumps(report))
         finally:

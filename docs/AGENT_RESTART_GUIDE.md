@@ -112,6 +112,8 @@ Test-NetConnection 10.60.8.186 -Port 8000
 
 ## 2. Rocky Linux Agent
 
+v1.2.65 (2026-11-08)부터 Linux 설치기가 restart_agent.sh를 함께 배포하며 재시작 후 서비스가 비활성이면 실패 코드로 종료한다. `--check` 및 설정 보존 `--update`는 [Linux 설치·운영 문서](agent_install_linux.md)를 따른다. 신규 설치는 부팅 자동 시작을 활성화하고 기존 업데이트는 활성화 상태를 보존한다.
+
 Rocky Linux Agent는 `netguard-agent.service` systemd 서비스로 실행합니다.
 
 ### 2.1 Agent 단독 재기동

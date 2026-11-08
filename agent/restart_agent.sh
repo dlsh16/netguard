@@ -15,6 +15,11 @@ sleep 3
 
 echo "[NetGuard-Agent] Service status:"
 systemctl status "${SERVICE_NAME}" --no-pager -l || true
+if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
+  echo "[NetGuard-Agent] Restart failed; service is not active." >&2
+  journalctl -u "${SERVICE_NAME}" -n 30 --no-pager || true
+  exit 1
+fi
 
 if [[ -f "${LOG_FILE}" ]]; then
   echo

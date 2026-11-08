@@ -12,7 +12,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-AGENT_VERSION = '1.2.64'
+AGENT_VERSION = '1.2.65'
 MAX_ITEMS = 10000
 
 
@@ -174,7 +174,7 @@ def main():
     config = load_config(args.config)
     try:
         report = collect_windows(args.config) if platform.system() == 'Windows' else collect_linux(config.get('software_inventory') or {})
-        report.update(hostname=config['hostname'], ip_address=local_ip(), collected_at=datetime.now(timezone.utc).isoformat(), agent_version=AGENT_VERSION)
+        report.update(hostname=config['hostname'], ip_address=local_ip(config['server_url']), collected_at=datetime.now(timezone.utc).isoformat(), agent_version=AGENT_VERSION)
         if args.send:
             result = post_json(config['server_url'] + '/api/agent/software', report, config['api_key'], timeout=30)
             print('Software inventory: status={} items={} collection={}'.format(result.get('status'), result.get('items', 0), result.get('collection_status', '')))

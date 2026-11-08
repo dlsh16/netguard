@@ -1,133 +1,136 @@
-﻿#!/bin/bash
-# =============================================================================
-# NetGuard Agent — Linux 설치 스크립트 (오프라인 환경 호환)
-# 의존성: Python 3 (표준 라이브러리만 사용, pip 불필요)
-#
-# 실행: sudo bash install_agent_linux.sh
-# =============================================================================
+#!/usr/bin/env bash
+# NetGuard Linux Agent 1.2.65. Offline: no dnf/apt/pip or network downloads.
 set -euo pipefail
+umask 077
 
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-ok()   { echo -e "${GREEN}[OK]${NC}   $1"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
-info() { echo -e "${CYAN}[INFO]${NC} $1"; }
+info() { printf '[NetGuard-Agent] %s\n' "$*"; }
+fail() { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+MODE=install
+case "${1:-}" in
+    --check) MODE=check ;;
+    --update) MODE=update ;;
+    --help|-h) printf 'Usage: sudo bash %s [--check|--update]\n' "$0"; exit 0 ;;
+    '') ;;
+    *) fail 'Unknown option; use --check, --update or no option for a new install.' ;;
+esac
+[[ $# -le 1 ]] || fail 'Too many arguments.'
+[[ $(uname -s) == Linux ]] || fail 'This installer requires Linux with systemd.'
+[[ $EUID -eq 0 ]] || fail 'Run with sudo/root (including --check to read installed configuration).'
 
-[[ $EUID -ne 0 ]] && echo "[ERROR] root 권한으로 실행하세요." && exit 1
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+AGENT_SRC="$(dirname -- "$SCRIPT_DIR")/agent"
+HELPER="$SCRIPT_DIR/linux_agent_setup.py"
+INSTALL_DIR=/opt/netguard-agent
+CONFIG_FILE="$INSTALL_DIR/agent_config.json"
+SERVICE_FILE=/etc/systemd/system/netguard-agent.service
+SERVICE=netguard-agent
+for target in "$INSTALL_DIR" "$CONFIG_FILE" "$SERVICE_FILE" "$INSTALL_DIR/netguard_agent.py" "$INSTALL_DIR/software_inventory.py" "$INSTALL_DIR/restart_agent.sh"; do
+    [[ ! -L $target ]] || fail "Refusing to replace a symbolic link: $target"
+done
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_DIR="$(dirname "$SCRIPT_DIR")"
-AGENT_SRC="$SOURCE_DIR/agent"
-INSTALL_DIR="/opt/netguard-agent"
-SERVICE_FILE="/etc/systemd/system/netguard-agent.service"
+for command in systemctl systemd-analyze install mktemp useradd groupadd getent runuser flock; do
+    command -v "$command" >/dev/null || fail "Required command missing: $command"
+done
+[[ -d /run/systemd/system ]] || fail 'systemd must be running as the system service manager.'
+[[ -f $HELPER ]] || fail 'scripts/linux_agent_setup.py missing; extract the whole package.'
+for file in netguard_agent.py software_inventory.py restart_agent.sh; do
+    [[ -f $AGENT_SRC/$file ]] || fail "Required package file missing: agent/$file"
+done
+bash -n "$AGENT_SRC/restart_agent.sh"
 
-echo ""
-echo -e "${CYAN}=== NetGuard Agent Linux 설치 ===${NC}"
-echo ""
-
-# ── 입력 수집 ──────────────────────────────────────────────────────────────────
-read -rp "NetGuard 서버 URL [http://10.60.8.186:8000]: " INPUT_URL
-SERVER_URL="${INPUT_URL:-http://10.60.8.186:8000}"
-
-read -rp "API Key          [netguard-agent-key-2026]: " INPUT_KEY
-API_KEY="${INPUT_KEY:-netguard-agent-key-2026}"
-
-read -rp "수집 간격 (초)   [60]: " INPUT_INTERVAL
-INTERVAL="${INPUT_INTERVAL:-60}"
-
-read -rp "장치 유형        [server]: " INPUT_TYPE
-DEVICE_TYPE="${INPUT_TYPE:-server}"
-
-read -rp "위치 설명        []: " INPUT_LOC
-LOCATION="${INPUT_LOC:-}"
-
-# ── Python 확인 ────────────────────────────────────────────────────────────────
-PYTHON_BIN=""
-for p in python3.13 python3.12 python3.11 python3.10 python3; do
-    if command -v "$p" &>/dev/null; then
-        PYTHON_BIN="$p"
+PYTHON_BIN=''
+for candidate in "${NETGUARD_AGENT_PYTHON:-}" python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3.7 python3.6 python3; do
+    [[ -n $candidate ]] || continue
+    path=$(command -v "$candidate" 2>/dev/null) || { [[ -z ${NETGUARD_AGENT_PYTHON:-} ]] || fail 'Selected Python not found.'; continue; }
+    if "$path" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' 2>/dev/null; then
+        PYTHON_BIN=$("$path" -c 'import os,sys; print(os.path.abspath(sys.executable))')
         break
     fi
+    [[ -z ${NETGUARD_AGENT_PYTHON:-} ]] || fail 'Selected Python requires version 3.6 or later.'
 done
-[[ -z "$PYTHON_BIN" ]] && echo "[ERROR] Python 3 를 찾을 수 없습니다." && exit 1
-info "Python: $PYTHON_BIN ($($PYTHON_BIN --version 2>&1))"
+[[ -n $PYTHON_BIN ]] || fail 'Python 3.6+ not found. Prepare approved offline OS packages first.'
+[[ $PYTHON_BIN =~ ^/[a-zA-Z0-9_./-]+$ ]] || fail 'Use a system Python in an absolute path without spaces or systemd specifiers.'
+info "Python: $PYTHON_BIN ($("$PYTHON_BIN" --version 2>&1))"
+"$PYTHON_BIN" -B "$HELPER" check "$AGENT_SRC" "$CONFIG_FILE"
+if [[ $MODE == check ]]; then
+    info 'Preflight passed. No installed files, users or services were changed. Network delivery is not tested.'
+    exit 0
+fi
 
-# ── 파일 설치 ──────────────────────────────────────────────────────────────────
-mkdir -p "$INSTALL_DIR"
+exec 9>/run/lock/netguard-agent-install.lock
+flock -n 9 || fail 'Another NetGuard Agent installation is in progress.'
 
-if [[ -f "$AGENT_SRC/netguard_agent.py" && -f "$AGENT_SRC/software_inventory.py" ]]; then
-    cp "$AGENT_SRC/netguard_agent.py" "$INSTALL_DIR/"
-    cp "$AGENT_SRC/software_inventory.py" "$INSTALL_DIR/"
-    ok "netguard_agent.py 복사 완료"
+# Refuse implicit reinstallation; updates preserve config bytes and the existing unit.
+if [[ $MODE == install ]]; then
+    [[ ! -e $CONFIG_FILE && ! -e $SERVICE_FILE ]] || fail 'Existing installation found. Use --update; configuration will not be overwritten.'
+    [[ $(systemctl show "$SERVICE" -p LoadState --value) == not-found ]] || fail 'An existing service already uses this name; review it before installing.'
 else
-    echo "[ERROR] netguard_agent.py/software_inventory.py 파일을 모두 반입해야 합니다." && exit 1
+    [[ -f $CONFIG_FILE && -f $SERVICE_FILE ]] || fail '--update requires an existing config and /etc/systemd/system/netguard-agent.service.'
+    id ngagent >/dev/null 2>&1 && getent group ngagent >/dev/null || fail 'Existing ngagent user/group missing.'
+    [[ $(id -u ngagent) != 0 ]] || fail 'ngagent must not be a root account.'
+    [[ $(systemctl show "$SERVICE" -p User --value) == ngagent ]] || fail 'Nonstandard service user. Review the manual update procedure before changing files.'
+    [[ $(systemctl show "$SERVICE" -p WorkingDirectory --value) == "$INSTALL_DIR" ]] || fail 'Nonstandard WorkingDirectory; use the manual update procedure.'
+    runuser -u ngagent -- "$PYTHON_BIN" -B -c 'import ctypes, json, urllib.request'
 fi
 
-# ── 설정 파일 작성 ────────────────────────────────────────────────────────────
-HOSTNAME_VAL="$(hostname)"
-CONFIG_FILE="$INSTALL_DIR/agent_config.json"
+STAGE=$(mktemp -d /tmp/netguard-agent-install.XXXXXXXX)
+trap 'rm -rf -- "$STAGE"' EXIT
 
-cat > "$CONFIG_FILE" << JSON
-{
-    "server_url":  "${SERVER_URL}",
-    "api_key":     "${API_KEY}",
-    "interval":    ${INTERVAL},
-    "hostname":    "${HOSTNAME_VAL}",
-    "device_type": "${DEVICE_TYPE}",
-    "location":    "${LOCATION}",
-    "log_file":    "${INSTALL_DIR}/agent.log",
-    "software_inventory": {"enabled": true, "interval_hours": 6, "tomcat_homes": [], "extra_software": []}
-}
-JSON
-chmod 640 "$CONFIG_FILE"
-ok "agent_config.json 작성 완료"
-
-# ── 전용 사용자 ────────────────────────────────────────────────────────────────
-if ! id ngagent &>/dev/null; then
-    useradd -r -s /sbin/nologin -d "$INSTALL_DIR" ngagent
-    ok "ngagent 사용자 생성"
+if [[ $MODE == install ]]; then
+    read -r -p 'NetGuard server URL [http://10.60.8.186:8000]: ' INPUT_URL
+    read -r -s -p 'API key [netguard-agent-key-2026]: ' INPUT_KEY
+    printf '\n'
+    read -r -p 'Collection interval seconds [60]: ' INPUT_INTERVAL
+    read -r -p 'Device type [server]: ' INPUT_TYPE
+    read -r -p 'Location []: ' INPUT_LOC
+    NG_URL="${INPUT_URL:-http://10.60.8.186:8000}" NG_KEY="${INPUT_KEY:-netguard-agent-key-2026}" \
+    NG_INTERVAL="${INPUT_INTERVAL:-60}" NG_TYPE="${INPUT_TYPE:-server}" NG_LOCATION="$INPUT_LOC" \
+        "$PYTHON_BIN" -B "$HELPER" config > "$STAGE/agent_config.json"
+    unset INPUT_KEY
+    "$PYTHON_BIN" -B "$HELPER" unit "$PYTHON_BIN" > "$STAGE/netguard-agent.service"
+    systemd-analyze verify "$STAGE/netguard-agent.service"
+else
+    systemd-analyze verify "$SERVICE_FILE"
 fi
-chown -R ngagent:ngagent "$INSTALL_DIR"
 
-# ── systemd 서비스 등록 ───────────────────────────────────────────────────────
-cat > "$SERVICE_FILE" << EOF
-[Unit]
-Description=NetGuard Monitoring Agent
-After=network.target
-Wants=network-online.target
+BACKUP=''
+if [[ $MODE == update ]]; then
+    install -d -o root -g root -m 0755 /var/backups
+    BACKUP=$(mktemp -d /var/backups/netguard-agent.XXXXXXXX)
+    for file in netguard_agent.py software_inventory.py restart_agent.sh agent_config.json; do
+        if [[ -f $INSTALL_DIR/$file ]]; then cp -p -- "$INSTALL_DIR/$file" "$BACKUP/"; fi
+    done
+    cp -p -- "$SERVICE_FILE" "$BACKUP/netguard-agent.service"
+    info "Backup: $BACKUP (root-only). Configuration and unit contents will be preserved."
+    systemctl stop "$SERVICE"
+fi
 
-[Service]
-Type=simple
-User=ngagent
-WorkingDirectory=${INSTALL_DIR}
-ExecStart=${PYTHON_BIN} ${INSTALL_DIR}/netguard_agent.py
-Restart=on-failure
-RestartSec=10
-StartLimitInterval=60
-StartLimitBurst=5
+if ! id ngagent >/dev/null 2>&1; then
+    if ! getent group ngagent >/dev/null; then groupadd --system ngagent; fi
+    useradd --system --gid ngagent --shell /sbin/nologin --home-dir "$INSTALL_DIR" ngagent
+fi
+getent group ngagent >/dev/null || fail 'The ngagent group is missing. Review the existing service account.'
+[[ $(id -u ngagent) != 0 ]] || fail 'ngagent must not be a root account.'
+install -d -o ngagent -g ngagent -m 0750 "$INSTALL_DIR"
+install -o root -g ngagent -m 0640 "$AGENT_SRC/netguard_agent.py" "$AGENT_SRC/software_inventory.py" "$INSTALL_DIR/"
+install -o root -g ngagent -m 0750 "$AGENT_SRC/restart_agent.sh" "$INSTALL_DIR/"
+if [[ $MODE == install ]]; then
+    install -o root -g ngagent -m 0640 "$STAGE/agent_config.json" "$CONFIG_FILE"
+    install -o root -g root -m 0644 "$STAGE/netguard-agent.service" "$SERVICE_FILE"
+fi
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
+# Validate with the actual service account before attempting startup.
+runuser -u ngagent -- "$PYTHON_BIN" -B - check-installed "$INSTALL_DIR" "$CONFIG_FILE" < "$HELPER"
 systemctl daemon-reload
-systemctl enable --now netguard-agent
-sleep 2
-
-if systemctl is-active netguard-agent &>/dev/null; then
-    ok "netguard-agent 서비스 시작 성공!"
-else
-    warn "서비스 상태를 확인하세요:"
-    echo "  sudo journalctl -u netguard-agent -n 20 --no-pager"
+if [[ $MODE == install ]]; then systemctl enable "$SERVICE"; fi
+systemctl reset-failed "$SERVICE"
+systemctl restart "$SERVICE"
+sleep 3
+if ! systemctl is-active --quiet "$SERVICE"; then
+    printf '[ERROR] Agent failed to stay active. Check journalctl -u netguard-agent -n 50 --no-pager.\n' >&2
+    [[ -z $BACKUP ]] || info "Backup retained at: $BACKUP"
+    exit 1
 fi
-
-echo ""
-echo -e "${GREEN}=== 설치 완료 ===${NC}"
-echo "  서버 URL : $SERVER_URL"
-echo "  호스트명 : $HOSTNAME_VAL"
-echo "  간격     : ${INTERVAL}s"
-echo ""
-echo "서비스 관리:"
-echo "  sudo systemctl {start|stop|restart|status} netguard-agent"
-echo "  sudo journalctl -u netguard-agent -f"
-echo "  tail -f $INSTALL_DIR/agent.log"
-echo ""
+info 'Agent is active. Confirm periodic OK entries in agent.log and the server last-seen timestamp.'
+info "Autostart state: $(systemctl is-enabled "$SERVICE" 2>/dev/null || true)"
+info 'Close this terminal normally; systemd owns the background process.'

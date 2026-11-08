@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.64 | 최종 업데이트: 2026-11-08
+> 버전: 1.2.65 | 최종 업데이트: 2026-11-08
 
 ---
 
@@ -17,6 +17,7 @@
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
 | **소프트웨어 검색 / 서버·에이전트 갱신** | [SOFTWARE_INVENTORY_GUIDE.md](SOFTWARE_INVENTORY_GUIDE.md) |
 | **Windows Agent 설치 오류 / 구형 런타임 점검** | [WINDOWS_AGENT_COMPATIBILITY.md](WINDOWS_AGENT_COMPATIBILITY.md) |
+| **Linux Agent 설치 / 설정 보존 갱신** | [agent_install_linux.md](agent_install_linux.md) |
 
 > 아래 내용은 공통 개요입니다. 실제 설치는 위 플랫폼별 메뉴얼을 따르세요.
 
@@ -595,6 +596,14 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.65 (2026-11-08) - Linux Agent 설치 및 오프라인 실행 점검
+
+- Linux 설치기에 `--check`, 설정/unit 내용 보존 `--update`, root 전용 백업, 실패 종료 코드 처리를 추가했다. 재설치로 기존 설정을 덮어쓰지 않는다.
+- 신규 서비스에 절대 Python 경로, 전용 계정, 네트워크 준비 순서, 부팅 자동 시작, 비정상 종료 재시도를 적용한다. restart_agent.sh 배포 누락 및 잘못된 시작 제한 옵션 위치를 수정했다.
+- Python JSON 생성/검증으로 특수문자 입력 손상을 방지한다. Python 3.6 점검 명령 호환성과 NetGuard 서버 경로 기반 IPv4 탐지를 보완했다.
+- 중앙 서버/DB 수정 없이 대상 에이전트만 갱신한다. Windows PowerShell 파일은 이번 버전에서 변경하지 않았다. [Linux 설치·운영 문서](agent_install_linux.md)에 검사·업데이트·서비스 확인·원복 절차를 기록했다.
+- 변경 파일: `scripts/install_agent_linux.sh`, 신규 `scripts/linux_agent_setup.py`, `agent/restart_agent.sh`, `agent/netguard_agent.py`, `agent/software_inventory.py`, 신규 `tests/test_linux_agent_setup.py`, `tests/Dockerfile.linux-agent`, `tests/test_software_agent.py`, Linux/Rocky 설치 및 재시작/인벤토리 가이드, `docs/GUIDE.md`.
 
 ### v1.2.64 (2026-11-08) - Windows Agent 설치 사전 검사 및 호환성 보완
 
