@@ -1,6 +1,9 @@
 #Requires -Version 5.1
 param([switch]$Collect, [switch]$Send, [string]$ConfigPath = (Join-Path $PSScriptRoot 'agent_config.json'))
 
+. (Join-Path $PSScriptRoot 'windows_agent_common.ps1')
+Assert-AgentRuntime
+
 function New-SoftwareItem {
     param([string]$Name, [string]$Version = '', [string]$Path = '', [string]$Publisher = '', [string]$Source = 'process')
     $values = @($Name.Trim(), $Version.Trim(), $Path, $Publisher)
@@ -134,10 +137,9 @@ if ($Collect -or $Send) {
     $options = if ($config.software_inventory) { $config.software_inventory } else { @{} }
     $report = Get-SoftwareInventory $options
     $report.hostname = if ($config.hostname) { $config.hostname } else { $env:COMPUTERNAME }
-    $ip = Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|vEthernet' } | Sort-Object PrefixLength | Select-Object -First 1
-    $report.ip_address = if ($ip) { $ip.IPAddress } else { '127.0.0.1' }
+    $report.ip_address = Get-AgentIPv4
     $report.collected_at = [DateTime]::UtcNow.ToString('o')
-    $report.agent_version = '1.2.63'
+    $report.agent_version = '1.2.64'
     $json = $report | ConvertTo-Json -Depth 8 -Compress
     if ($Send) {
         $base = [string]$config.server_url

@@ -11,6 +11,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'windows_agent_common.ps1')
+Assert-AgentRuntime
 $ServiceName = "NetGuardAgent"
 $TaskName = "NetGuardAgent"
 $InstallDir = "C:\NetGuard-Agent"
@@ -173,16 +175,16 @@ if ($svc) {
     exit 0
 }
 
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$task = Get-AgentTask -TaskName $TaskName
 if ($task -and ($Restart -or $ForceTaskRecreate)) {
     Write-Step "Stopping scheduled task: $TaskName"
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    Stop-AgentTask -TaskName $TaskName
     Start-Sleep -Seconds 3
 }
 
 if ($ForceTaskRecreate -and $task) {
     Write-Step "Recreating scheduled task with current launcher settings: $TaskName"
-    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Remove-AgentTask -TaskName $TaskName
     $task = $null
 }
 
@@ -200,14 +202,14 @@ if ($task -and $task.State -eq "Running" -and -not $Restart) {
 Write-Step "Starting scheduled task: $TaskName"
 Start-AgentTask
 Start-Sleep -Seconds 3
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$task = Get-AgentTask -TaskName $TaskName
 if ($task) {
     Write-Step "Task state: $($task.State)" $(if ($task.State -eq "Running") { "Green" } else { "Yellow" })
 } else {
     Write-Step "Task start command was sent. Use schtasks /Query /TN $TaskName to verify." "Yellow"
 }
 
-$info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+$info = Get-AgentTask -TaskName $TaskName
 if ($info) {
     Write-Step "LastTaskResult: $($info.LastTaskResult)"
 }

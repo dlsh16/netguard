@@ -533,7 +533,7 @@ class SoftwareInventoryWorker:
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(SCRIPT_DIR),
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0)
         self.started = now
-        self.logger.info('Software inventory started in background (agent 1.2.63)')
+        self.logger.info('Software inventory started in background (agent 1.2.64)')
 
 
 def main():

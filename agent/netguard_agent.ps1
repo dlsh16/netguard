@@ -3,6 +3,8 @@
 # 실행: powershell -NonInteractive -File netguard_agent.ps1
 
 $ScriptDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $ScriptDir 'windows_agent_common.ps1')
+Assert-AgentRuntime
 $ConfigFile = Join-Path $ScriptDir "agent_config.json"
 $LogFile    = Join-Path $ScriptDir "agent.log"
 
@@ -53,13 +55,7 @@ function Write-Log {
 
 # ── 로컬 IP 탐지 ───────────────────────────────────────────────────────────────
 function Get-LocalIP {
-    try {
-        $ip = (Get-NetIPAddress -AddressFamily IPv4 |
-               Where-Object { $_.InterfaceAlias -notmatch "Loopback|vEthernet" } |
-               Sort-Object PrefixLength |
-               Select-Object -First 1).IPAddress
-        if ($ip) { return $ip } else { return "127.0.0.1" }
-    } catch { return "127.0.0.1" }
+    return Get-AgentIPv4
 }
 
 # ── 메트릭 수집 ───────────────────────────────────────────────────────────────
@@ -313,7 +309,7 @@ function Update-SoftwareInventoryWorker {
     }
     $script:SoftwareInventoryJob = Start-Job -ScriptBlock { param($path) & $path -Send } -ArgumentList $helper
     $script:SoftwareInventoryStarted = Get-Date
-    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.63)'
+    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.64)'
 }
 
 $cfg = Load-Config

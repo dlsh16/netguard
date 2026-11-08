@@ -2,6 +2,8 @@
 
 버전: v1.2.63 / 작성일: 2026-11-07 / 서버 적용 기준: v1.2.62
 
+> Windows Agent 설치 보완: v1.2.64 (2026-11-08). 아래 중앙 서버/Rocky 적용 절차는 v1.2.63 기준으로 유지한다. Windows Agent는 공통 파일이 추가된 v1.2.64 패키지와 [호환성/갱신 가이드](WINDOWS_AGENT_COMPATIBILITY.md)를 사용한다. 중앙 서버 v1.2.63이 이미 적용되었다면 서버를 다시 패치하거나 재시작하지 않는다.
+
 ## 변경 내용
 
 - 기존 독립 메뉴 `프로세스 모니터링`을 `소프트웨어 검색`으로 변경했다. 서버 상세 화면의 CPU/메모리/프로세스 지표는 유지한다.
@@ -78,25 +80,9 @@ Get-Service NetGuard
 
 ## Windows 에이전트 갱신
 
-기존 설치에는 `install.bat`를 다시 실행하지 않는다. 설치 프로그램은 설정 파일을 다시 작성할 수 있다. 새 ZIP을 임시 폴더에 풀고 다음 **4개 파일**만 교체한 뒤 기존 재시작 도구를 실행한다. 설정 파일/로그/서비스 등록은 유지한다.
+기존 설치에는 `install.bat`를 다시 실행하지 않는다. 설치 프로그램은 설정 파일을 다시 작성할 수 있다. **Windows Agent v1.2.64부터는 windows_agent_common.ps1을 포함한 코드 9개를 함께 교체해야 한다.** 현재 업데이트 명령과 사전 검사/백업/중지/원복은 [Windows Agent 호환성 가이드](WINDOWS_AGENT_COMPATIBILITY.md)의 '기존 에이전트 갱신'을 따른다.
 
-```powershell
-$ErrorActionPreference = 'Stop'
-Expand-Archive -LiteralPath 'C:\Temp\NetGuard-Agent-v1.2.63.zip' -DestinationPath 'C:\Temp\NetGuard-v1263' -Force
-$source = 'C:\Temp\NetGuard-v1263\agent'
-$target = 'C:\NetGuard-Agent'
-$files = @('netguard_agent.ps1', 'netguard_agent.py', 'software_inventory.ps1', 'software_inventory.py')
-$backup = Join-Path $target ('backup-v1263-' + (Get-Date -Format 'yyyyMMdd-HHmmss'))
-New-Item -ItemType Directory -Path $backup | Out-Null
-foreach ($file in $files) {
-    if (Test-Path -LiteralPath (Join-Path $target $file)) { Copy-Item -LiteralPath (Join-Path $target $file) -Destination $backup }
-    Copy-Item -LiteralPath (Join-Path $source $file) -Destination $target -Force
-}
-& "$target\restart_agent.bat"
-Get-Content "$target\agent.log" -Tail 40
-```
-
-PowerShell 모드도 Python 모드도 두 보조 파일을 함께 배포한다. 최초 설치는 ZIP 전체를 푼 `agent\install.bat`를 관리자 권한으로 실행한다. Windows PowerShell 5.1 이상이 필요하다. 창을 닫아도 기존 서비스/시작 작업으로 동작하며 재부팅 자동 시작 설정은 유지된다. 실제 서비스/작업 확인은 [에이전트 재시작 가이드](AGENT_RESTART_GUIDE.md)를 따른다.
+PowerShell 모드도 Python 모드도 보조 파일을 함께 배포한다. 최초 설치는 ZIP 전체를 푼 후 `agent\install.bat --check`로 점검하고 `agent\install.bat`를 관리자 권한으로 실행한다. Windows PowerShell 5.1/.NET Framework 4.5.2 이상이 필요하다. 실제 서비스/작업과 재부팅 자동 시작 확인은 [에이전트 재시작 가이드](AGENT_RESTART_GUIDE.md)를 따른다.
 
 ## Rocky Linux 에이전트 갱신
 

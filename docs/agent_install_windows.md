@@ -1,11 +1,11 @@
 # NetGuard Agent - Windows 설치 매뉴얼
 
-> 2026-11-07 / v1.2.63: 설치 소프트웨어/실행 파일/Tomcat 인벤토리 수집을 추가했다. 기존 설치는 재설치 대신 [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 4개 파일 교체 절차를 사용해 설정을 보존한다. 새 보조 파일 software_inventory.ps1/.py를 반드시 함께 배포한다.
+> 2026-11-08 / v1.2.64: 설치 경로 오류 및 사전 검사를 수정했다. 기존 설치는 재설치 대신 [Windows Agent 호환성 가이드](WINDOWS_AGENT_COMPATIBILITY.md)의 9개 코드 파일 교체 절차로 설정을 보존한다. windows_agent_common.ps1과 software_inventory.ps1/.py도 함께 배포한다. v1.2.63의 소프트웨어 수집 기능은 유지한다.
 
 ## 개요
 
 NetGuard Agent는 모니터링 대상 Windows 서버에 설치하여 CPU·메모리·디스크·네트워크 지표를 NetGuard 서버로 전송합니다.  
-Python 없이 PowerShell만으로 동작하며, Windows 서비스(Scheduled Task)로 자동 실행됩니다.
+Python 없이 PowerShell만으로 동작하며, NSSM Windows 서비스 또는 작업 스케줄러로 자동 실행됩니다.
 
 ---
 
@@ -14,7 +14,8 @@ Python 없이 PowerShell만으로 동작하며, Windows 서비스(Scheduled Task
 | 항목 | 최소 요구 사항 |
 |------|---------------|
 | OS | Windows Server 2016 / Windows 10 이상 |
-| PowerShell | 5.1 이상 (기본 탑재) |
+| PowerShell | Windows PowerShell 5.1 (pwsh/PowerShell 7 대체 불가) |
+| .NET Framework | 4.5.2 이상; 구형 OS는 별도 호환성 가이드 확인 |
 | 네트워크 | NetGuard 서버(포트 8000) 접근 가능 |
 | 권한 | 관리자(Administrator) 계정 |
 
@@ -24,17 +25,24 @@ Python 없이 PowerShell만으로 동작하며, Windows 서비스(Scheduled Task
 
 ### 방법 1 — 자동 설치 (권장)
 
-1. 에이전트 파일을 대상 서버에 복사합니다.
+1. 배포 ZIP 전체를 대상 서버에 압축 해제합니다. agent_config.json은 설치 시 작성하므로 신규 ZIP에 포함되지 않습니다.
    ```
    agent\
      install.bat
      install.ps1
      netguard_agent.ps1
      netguard_agent.py
-     agent_config.json
+     check_agent_environment.ps1
+     windows_agent_common.ps1
+     software_inventory.ps1
+     software_inventory.py
+     restart_agent.ps1
+     restart_agent.bat
+     start_agent_background.ps1
+     start_agent_background.bat
    ```
 
-2. `install.bat`를 **마우스 우클릭 → 관리자 권한으로 실행**합니다.
+2. PowerShell에서 `.\install.bat --check`를 실행해 `Preflight passed`와 종료 코드 0을 확인합니다. 그 후 `install.bat`를 **마우스 우클릭 → 관리자 권한으로 실행**합니다. 구형 런타임이면 [오프라인 사전 준비](WINDOWS_AGENT_COMPATIBILITY.md)를 먼저 완료합니다.
 
 3. 설치 프롬프트에 값을 입력합니다.
    ```
@@ -50,9 +58,11 @@ Python 없이 PowerShell만으로 동작하며, Windows 서비스(Scheduled Task
 
 4. 설치 완료 메시지를 확인합니다.
    ```
-   [OK] NetGuard Agent installed  →  C:\NetGuard-Agent
-   [OK] Scheduled Task registered: NetGuardAgent
+   [NetGuard-Agent] Task state: Running
+   [NetGuard-Agent] Install complete
    ```
+
+   NSSM 방식에서는 Service status가 표시됩니다. 이 메시지만으로 서버 연결을 판단하지 말고 agent.log의 주기적인 OK와 서버의 마지막 수집 시각을 확인합니다.
 
 ---
 
@@ -79,16 +89,12 @@ Copy-Item agent\* "C:\NetGuard-Agent\" -Force
 ```
 > `hostname`을 비워두면 자동으로 컴퓨터 이름을 사용합니다.
 
-**3단계 — Scheduled Task 등록**
+**3단계 — 백그라운드 기동 등록**
 ```powershell
-$action  = New-ScheduledTaskAction -Execute "powershell.exe" `
-    -Argument "-NonInteractive -ExecutionPolicy Bypass -File C:\NetGuard-Agent\netguard_agent.ps1"
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-Register-ScheduledTask -TaskName "NetGuardAgent" -Action $action `
-    -Trigger $trigger -RunLevel Highest -Force
-Start-ScheduledTask -TaskName "NetGuardAgent"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\NetGuard-Agent\start_agent_background.ps1"
 ```
+
+관리자 권한으로 실행합니다. Windows PowerShell 5.1이 있어도 ScheduledTasks 모듈이 없는 구형 OS에서는 내장 schtasks.exe 대체 경로를 사용합니다. 파일 복사 전에 원본 폴더의 install.bat --check를 통과해야 합니다.
 
 ---
 

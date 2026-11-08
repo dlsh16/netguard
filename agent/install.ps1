@@ -1,10 +1,15 @@
 # NetGuard Agent - Windows Install Script
-# Version: 2026-07-29-scheduler-fallback
+# Version: 1.2.64 (2026-11-08) - runtime and package preflight
 # Run: install.bat
+
+param([switch]$CheckOnly)
 
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+& (Join-Path $ScriptDir 'check_agent_environment.ps1')
+if ($CheckOnly) { return }
+. (Join-Path $ScriptDir 'windows_agent_common.ps1')
 $InstallDir = "C:\NetGuard-Agent"
 $ServiceName = "NetGuardAgent"
 $TaskName = "NetGuardAgent"
@@ -17,7 +22,7 @@ function Write-Step {
 function Read-WithDefault {
     param([string]$Prompt, [string]$Default)
     $value = Read-Host "$Prompt [$Default]"
-    if ([string]::IsNullOrWhiteSpace($value)) { return $Default }
+    if ($null -eq $value -or $value.Trim().Length -eq 0) { return $Default }
     return $value.Trim()
 }
 
@@ -73,11 +78,11 @@ function Stop-And-Remove-Existing {
         Start-Sleep -Seconds 2
     }
 
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $task = Get-AgentTask -TaskName $TaskName
     if ($task) {
         Write-Step "Removing existing scheduled task: $TaskName" "Yellow"
-        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Stop-AgentTask -TaskName $TaskName
+        Remove-AgentTask -TaskName $TaskName
     }
 }
 
@@ -186,7 +191,7 @@ if (-not (Test-IsAdmin)) {
 }
 
 Write-Host ""
-Write-Step "NetGuard Agent Windows Install 2026-07-29-scheduler-fallback"
+Write-Step "NetGuard Agent Windows Install 1.2.64"
 Write-Host ""
 
 $ServerUrl = Normalize-ServerUrl (Read-WithDefault "Server URL" "http://10.60.8.186:8000")
@@ -227,7 +232,7 @@ foreach ($required in @($AgentScript, 'software_inventory.ps1', 'software_invent
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $ScriptDir $AgentScript) -Destination $InstallDir -Force
-foreach ($helper in @("software_inventory.ps1", "software_inventory.py", "restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
+foreach ($helper in @("windows_agent_common.ps1", "software_inventory.ps1", "software_inventory.py", "restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
     $src = Join-Path $ScriptDir $helper
     if (Test-Path $src) {
         Copy-Item -LiteralPath $src -Destination $InstallDir -Force
@@ -260,7 +265,7 @@ try {
     } else {
         Start-AgentTask
         Start-Sleep -Seconds 3
-        $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        $task = Get-AgentTask -TaskName $TaskName
         if ($task) {
             Write-Step "Task state: $($task.State)" $(if ($task.State -eq "Running") { "Green" } else { "Yellow" })
         } else {

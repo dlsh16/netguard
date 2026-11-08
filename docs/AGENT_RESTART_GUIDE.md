@@ -2,6 +2,8 @@
 
 NetGuard 서버를 재시작하지 않고, 모니터링 대상 서버의 Agent만 기동하거나 재기동하는 절차입니다.
 
+> v1.2.64 (2026-11-08): Windows 공통 파일 `windows_agent_common.ps1`이 추가되었습니다. 재시작 파일만 교체하지 말고 [설정 보존 업데이트 절차](WINDOWS_AGENT_COMPATIBILITY.md)에 따라 함께 배포합니다. Windows PowerShell 5.1/.NET Framework 4.5.2 이상이 필요하며 구형 런타임에서는 서비스 변경 전에 중단합니다.
+
 ## 1. Windows Agent
 
 Windows Agent는 `NetGuardAgent` Windows 서비스 또는 작업 스케줄러 작업으로 백그라운드 실행합니다.
@@ -55,6 +57,7 @@ powershell -ExecutionPolicy Bypass -File "C:\NetGuard-Agent\restart_agent.ps1"
 최신 `restart_agent.ps1`는 이 파일이 없어도 내장 로직으로 재기동을 진행합니다. 표준 구성으로 맞추려면 배포 폴더의 아래 파일을 `C:\NetGuard-Agent`에 복사합니다.
 
 ```text
+windows_agent_common.ps1
 start_agent_background.ps1
 start_agent_background.bat
 restart_agent.ps1
@@ -73,8 +76,7 @@ Get-Content "C:\NetGuard-Agent\agent.log" -Tail 30
 작업 스케줄러 방식:
 
 ```powershell
-Get-ScheduledTask -TaskName "NetGuardAgent" | Select-Object TaskName, State
-(Get-ScheduledTaskInfo -TaskName "NetGuardAgent").LastTaskResult
+schtasks.exe /Query /TN NetGuardAgent /V /FO LIST
 Get-Content "C:\NetGuard-Agent\agent.log" -Tail 30
 ```
 
@@ -92,10 +94,9 @@ Get-Content "C:\NetGuard-Agent\agent_stdout.log" -Tail 50
 "System.String" 유형의 "{"status":"ok","device_id":35}" 값을 "System.Collections.Hashtable" 유형으로 변환할 수 없습니다.
 ```
 
-최신 `netguard_agent.ps1`를 `C:\NetGuard-Agent`에 복사한 뒤 Agent를 재기동합니다.
+최신 코드 전체를 [설정 보존 업데이트 절차](WINDOWS_AGENT_COMPATIBILITY.md)로 반영한 뒤 Agent를 재기동합니다. v1.2.64는 메인 파일만 단독 복사하면 공통 파일 누락으로 실행되지 않습니다.
 
 ```powershell
-Copy-Item ".\netguard_agent.ps1" "C:\NetGuard-Agent\netguard_agent.ps1" -Force
 C:\NetGuard-Agent\restart_agent.bat
 ```
 

@@ -3,6 +3,8 @@
 #   powershell -ExecutionPolicy Bypass -File C:\NetGuard-Agent\restart_agent.ps1
 
 $ErrorActionPreference = "Stop"
+. (Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) 'windows_agent_common.ps1')
+Assert-AgentRuntime
 $ServiceName = "NetGuardAgent"
 $TaskName = "NetGuardAgent"
 $InstallDir = "C:\NetGuard-Agent"
@@ -143,13 +145,13 @@ function Invoke-EmbeddedRestart {
         return
     }
 
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $task = Get-AgentTask -TaskName $TaskName
     if ($task) {
         Write-Step "Stopping scheduled task: $TaskName"
-        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        Stop-AgentTask -TaskName $TaskName
         Start-Sleep -Seconds 3
         Write-Step "Recreating scheduled task with embedded restart settings: $TaskName"
-        Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+        Remove-AgentTask -TaskName $TaskName
     } else {
         Write-Step "Scheduled task not found. Registering scheduled task: $TaskName" "Yellow"
     }
@@ -158,14 +160,14 @@ function Invoke-EmbeddedRestart {
     Write-Step "Starting scheduled task: $TaskName"
     Start-AgentTask
     Start-Sleep -Seconds 3
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $task = Get-AgentTask -TaskName $TaskName
     if ($task) {
         Write-Step "Task state: $($task.State)" $(if ($task.State -eq "Running") { "Green" } else { "Yellow" })
     } else {
         Write-Step "Task start command was sent. Use schtasks /Query /TN $TaskName to verify." "Yellow"
     }
 
-    $info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+    $info = Get-AgentTask -TaskName $TaskName
     if ($info) {
         Write-Step "LastTaskResult: $($info.LastTaskResult)"
     }
@@ -192,7 +194,7 @@ if (Test-Path $bgStart) {
         Write-Step "Restarting Windows service through background launcher: $ServiceName"
         & $bgStart -Restart
     } else {
-        $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+        $task = Get-AgentTask -TaskName $TaskName
         if ($task) {
             Write-Step "Restarting scheduled task with refreshed settings: $TaskName"
             & $bgStart -Restart -ForceTaskRecreate
@@ -219,10 +221,10 @@ $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($svc) {
     Write-Step "Final service status: $($svc.Status)" $(if ($svc.Status -eq "Running") { "Green" } else { "Yellow" })
 } else {
-    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $task = Get-AgentTask -TaskName $TaskName
     if ($task) {
         Write-Step "Final task state: $($task.State)" $(if ($task.State -eq "Running") { "Green" } else { "Yellow" })
-        $info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+        $info = Get-AgentTask -TaskName $TaskName
         if ($info) {
             Write-Step "Final LastTaskResult: $($info.LastTaskResult)"
         }

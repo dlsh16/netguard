@@ -1,6 +1,6 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.63 | 최종 업데이트: 2026-11-07
+> 버전: 1.2.64 | 최종 업데이트: 2026-11-08
 
 ---
 
@@ -16,6 +16,7 @@
 | **취약점 검색 / 패치 적용** | [VULNERABILITY_SEARCH_GUIDE.md](VULNERABILITY_SEARCH_GUIDE.md) |
 | **점검/취약점 에이전트** | [SECURITY_CHECK_AGENT_USAGE.md](SECURITY_CHECK_AGENT_USAGE.md) |
 | **소프트웨어 검색 / 서버·에이전트 갱신** | [SOFTWARE_INVENTORY_GUIDE.md](SOFTWARE_INVENTORY_GUIDE.md) |
+| **Windows Agent 설치 오류 / 구형 런타임 점검** | [WINDOWS_AGENT_COMPATIBILITY.md](WINDOWS_AGENT_COMPATIBILITY.md) |
 
 > 아래 내용은 공통 개요입니다. 실제 설치는 위 플랫폼별 메뉴얼을 따르세요.
 
@@ -594,6 +595,14 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.64 (2026-11-08) - Windows Agent 설치 사전 검사 및 호환성 보완
+
+- install.bat의 경로 전달 실패와 거짓 구문 검사 성공 표시를 수정했다. `install.bat --check`로 설치 없이 전체 패키지와 런타임을 확인한다.
+- Windows PowerShell 5.1/.NET Framework 4.5.2 미충족 시 설치 변경 전에 중단한다. PowerShell 2.0 지원을 추가한 것은 아니다.
+- Get-NetIPAddress 미지원 환경에 WMI IPv4 조회를 추가하고, 작업 상태/중지/삭제는 ScheduledTasks 모듈 없이 COM으로 처리한다. 등록/시작의 기존 schtasks 대체 경로는 유지한다.
+- Windows 기존 설치는 공통 파일을 포함한 코드 9개를 함께 갱신한다. 설정/DB 초기화 및 중앙 서버 재시작은 필요 없다. [설치 오류 및 오프라인 준비 가이드](WINDOWS_AGENT_COMPATIBILITY.md)에 버전 확인·신규 설치·설정 보존 업데이트·운영 확인 절차를 정리했다.
+- 변경 파일: `agent/install.bat`, `agent/install.ps1`, 신규 `agent/check_agent_environment.ps1`, `agent/windows_agent_common.ps1`, `agent/restart_agent.ps1`, `agent/start_agent_background.ps1`, `agent/netguard_agent.ps1/.py`, `agent/software_inventory.ps1/.py`, `tests/test_agent_installer.py`, `tests/test_software_agent.py`, Windows 설치/운영·인벤토리 문서 및 Guide.
 
 ### v1.2.63 (2026-11-07) - 서버별 소프트웨어 인벤토리 검색
 

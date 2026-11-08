@@ -1,12 +1,14 @@
 @echo off
+setlocal EnableExtensions DisableDelayedExpansion
 title NetGuard Agent Install
-set "SCRIPT=%~dp0install.ps1"
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$p=$args[0]; $errors=$null; [System.Management.Automation.PSParser]::Tokenize((Get-Content -Raw -LiteralPath $p), [ref]$errors) | Out-Null; if($errors){$errors | Format-List *; exit 1}; Write-Host ('PowerShell syntax OK: ' + $p)" "%SCRIPT%"
-if errorlevel 1 (
-    pause
-    exit /b 1
-)
-
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
+set "PS_EXE=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if defined PROCESSOR_ARCHITEW6432 set "PS_EXE=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+if /I "%~1"=="--check" goto check
+"%PS_EXE%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0install.ps1"
+set "RESULT=%ERRORLEVEL%"
 pause
+exit /b %RESULT%
+
+:check
+"%PS_EXE%" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0install.ps1" -CheckOnly
+exit /b %ERRORLEVEL%

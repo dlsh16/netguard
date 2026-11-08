@@ -1,6 +1,8 @@
 ﻿# NetGuard SNMP Dashboard
 # Windows 설치 및 운영 메뉴얼
 
+> 2026-11-08 / v1.2.64 추가: 대상 Windows Agent 설치 오류는 [런타임 사전 검사 가이드](WINDOWS_AGENT_COMPATIBILITY.md)를 따른다. `install.bat --check`로 검사하며 Windows PowerShell 5.1/.NET Framework 4.5.2 이상이 필요하다. 이번 수정만으로 중앙 서버/DB를 재설치하거나 재시작하지 않는다.
+
 > 2026-11-07 / v1.2.63 추가: [소프트웨어 검색 가이드](SOFTWARE_INVENTORY_GUIDE.md)의 Windows 서버 패치 및 에이전트 갱신 절차를 적용한다. 새 DB 테이블은 서비스 시작 시 추가하며 기존 DB/설정은 초기화하지 않는다. 서버 패치 후 대상 에이전트도 갱신해야 한다.
 
 > 대상 OS: Windows Server 2019 / 2022, Windows 10/11 (테스트)

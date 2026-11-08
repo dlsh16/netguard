@@ -109,7 +109,7 @@ class SoftwareCollectorTests(unittest.TestCase):
                 self.assertEqual(endpoint, '/api/agent/software')
                 self.assertEqual(key, 'fixture-only')
                 self.assertEqual(report['hostname'], 'fixture-agent')
-                self.assertEqual(report['agent_version'], '1.2.63')
+                self.assertEqual(report['agent_version'], '1.2.64')
                 self.assertTrue(0 < len(report['items']) <= 10000)
                 self.assertNotIn('command_line', json.dumps(report))
         finally:
