@@ -16,6 +16,8 @@ $DefaultConfig = @{
     hostname    = $env:COMPUTERNAME
     device_type = "server"
     location    = ""
+    report_ip   = ""
+    agent_id    = ""
     software_inventory = @{ enabled = $true; interval_hours = 6; tomcat_homes = @(); extra_software = @() }
     security_checks = @{
         enabled = $false
@@ -307,11 +309,15 @@ function Update-SoftwareInventoryWorker {
         $script:NextSoftwareInventoryAt = (Get-Date).AddHours(1)
         return
     }
-    $script:SoftwareInventoryJob = Start-Job -ScriptBlock { param($path) & $path -Send } -ArgumentList $helper
+    $script:SoftwareInventoryJob = Start-Job -ScriptBlock {
+        param($path, $ip, $id)
+        & $path -Send -ReportIP $ip -AgentId $id
+    } -ArgumentList $helper, $Config._report_ip, $Config._agent_id
     $script:SoftwareInventoryStarted = Get-Date
-    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.64)'
+    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.67)'
 }
 
+function Start-AgentMain {
 $cfg = Load-Config
 $cfg.server_url = Normalize-ServerUrl $cfg.server_url
 
@@ -320,7 +326,11 @@ Write-Log "INFO" "Server  : $($cfg.server_url)"
 Write-Log "INFO" "Hostname: $($cfg.hostname)"
 Write-Log "INFO" "Interval: $($cfg.interval)s"
 
-$localIp = Get-LocalIP
+$localIp = Get-AgentIPv4 -ServerUrl $cfg.server_url -ReportIP $cfg.report_ip
+$identity = Get-AgentIdentity $cfg
+$cfg._report_ip = $localIp
+$cfg._agent_id = $identity
+Write-Log 'INFO' "Agent identity: $identity; report IP: $localIp; PID: $PID"
 $base    = $cfg.server_url
 
 # 초기 장치 등록
@@ -328,6 +338,7 @@ try {
     Send-Json -Url "$base/api/agent/register" -ApiKey $cfg.api_key -Payload @{
         hostname    = $cfg.hostname
         ip_address  = $localIp
+        agent_id    = $identity
         device_type = $cfg.device_type
         location    = $cfg.location
         os          = (Get-WmiObject Win32_OperatingSystem).Caption
@@ -349,6 +360,7 @@ while ($true) {
         $payload = @{
             hostname    = $cfg.hostname
             ip_address  = $localIp
+            agent_id    = $identity
             cpu_pct     = $metrics.cpu_pct
             mem_pct     = $metrics.mem_pct
             disk_max_pct = $metrics.disk_max_pct
@@ -371,4 +383,21 @@ while ($true) {
     $elapsed = ((Get-Date) - $start).TotalSeconds
     $sleep   = [math]::Max(1, $cfg.interval - $elapsed)
     Start-Sleep -Seconds ([int]$sleep)
+}
+}
+
+$instance = $null
+try {
+    $instance = Enter-AgentInstance
+    if ($null -eq $instance) {
+        Write-Log 'WARN' 'Another NetGuard agent is already running; duplicate process exits without sending'
+        exit 0
+    }
+    Start-AgentMain
+} finally {
+    if ($script:SoftwareInventoryJob) {
+        Stop-Job $script:SoftwareInventoryJob -ErrorAction SilentlyContinue
+        Remove-Job $script:SoftwareInventoryJob -Force -ErrorAction SilentlyContinue
+    }
+    if ($instance) { $instance.ReleaseMutex(); $instance.Dispose() }
 }

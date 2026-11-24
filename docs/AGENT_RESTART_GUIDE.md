@@ -1,5 +1,7 @@
 # NetGuard Agent 단독 재기동 및 백그라운드 기동 가이드
 
+> v1.2.67 (2026-11-25): [중복 실행/IP 변경 가이드](AGENT_IDENTITY_GUIDE.md)를 추가했다. 최초 적용은 중앙 서버 패치가 선행되어야 하며 이후 Agent 단독 재시작은 기존 방법을 사용한다. 서비스가 있으면 동일 이름의 예약 작업을 비활성화/중지한다. 구버전/다른 이름의 작업은 개별 확인한다.
+
 NetGuard 서버를 재시작하지 않고, 모니터링 대상 서버의 Agent만 기동하거나 재기동하는 절차입니다.
 
 > v1.2.64 (2026-11-08): Windows 공통 파일 `windows_agent_common.ps1`이 추가되었습니다. 재시작 파일만 교체하지 말고 [설정 보존 업데이트 절차](WINDOWS_AGENT_COMPATIBILITY.md)에 따라 함께 배포합니다. Windows PowerShell 5.1/.NET Framework 4.5.2 이상이 필요하며 구형 런타임에서는 서비스 변경 전에 중단합니다.

@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-param([switch]$Collect, [switch]$Send, [string]$ConfigPath = (Join-Path $PSScriptRoot 'agent_config.json'))
+param([switch]$Collect, [switch]$Send, [string]$ConfigPath = (Join-Path $PSScriptRoot 'agent_config.json'), [string]$ReportIP, [string]$AgentId)
 
 . (Join-Path $PSScriptRoot 'windows_agent_common.ps1')
 Assert-AgentRuntime
@@ -137,9 +137,10 @@ if ($Collect -or $Send) {
     $options = if ($config.software_inventory) { $config.software_inventory } else { @{} }
     $report = Get-SoftwareInventory $options
     $report.hostname = if ($config.hostname) { $config.hostname } else { $env:COMPUTERNAME }
-    $report.ip_address = Get-AgentIPv4
+    $report.ip_address = if ($ReportIP) { $ReportIP } else { Get-AgentIPv4 -ServerUrl $config.server_url -ReportIP $config.report_ip }
+    $report.agent_id = if ($AgentId) { Get-AgentIdentity @{agent_id=$AgentId} } else { Get-AgentIdentity $config }
     $report.collected_at = [DateTime]::UtcNow.ToString('o')
-    $report.agent_version = '1.2.64'
+    $report.agent_version = '1.2.67'
     $json = $report | ConvertTo-Json -Depth 8 -Compress
     if ($Send) {
         $base = [string]$config.server_url

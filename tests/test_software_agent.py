@@ -105,11 +105,13 @@ class SoftwareCollectorTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
                     self.assertIn(b'status=ok', result.stdout)
             self.assertEqual(len(reports), 2)
-            for (endpoint, key, report), version in zip(reports, ('1.2.64', '1.2.65')):
+            for (endpoint, key, report), version in zip(reports, ('1.2.67', '1.2.67')):
                 self.assertEqual(endpoint, '/api/agent/software')
                 self.assertEqual(key, 'fixture-only')
                 self.assertEqual(report['hostname'], 'fixture-agent')
                 self.assertEqual(report['agent_version'], version)
+                self.assertEqual(report['agent_id'], netguard_agent.agent_id())
+                self.assertEqual(report['ip_address'], '127.0.0.1')
                 self.assertTrue(0 < len(report['items']) <= 10000)
                 self.assertNotIn('command_line', json.dumps(report))
         finally:

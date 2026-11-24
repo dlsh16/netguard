@@ -132,6 +132,7 @@ function Invoke-EmbeddedRestart {
 
     $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
     if ($svc) {
+        Disable-AgentServiceDuplicateTask -TaskName $TaskName
         Write-Step "Restarting Windows service: $ServiceName"
         if ($svc.Status -ne "Stopped") {
             Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue

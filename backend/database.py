@@ -89,6 +89,8 @@ async def _init_db_locked(conn):
         except Exception as e:
             logger.warning(f"Device SNMP v3 column migration failed ({column}): {e}")
 
+    from agent_identity import init_agent_identity_schema
+    await init_agent_identity_schema(conn)
     from software_inventory import init_inventory_schema
     await init_inventory_schema(conn)
 

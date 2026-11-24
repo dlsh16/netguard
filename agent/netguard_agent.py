@@ -6,10 +6,14 @@ NetGuard Agent — 오프라인 호환 시스템 모니터링 에이전트
 """
 import ctypes
 import base64
+import errno
+import hashlib
+import ipaddress
 import json
 import logging
 import os
 import platform
+import re
 import socket
 import subprocess
 import sys
@@ -379,11 +383,93 @@ def collect() -> dict:
     }
 
 # ── 로컬 IP 탐지 ──────────────────────────────────────────────────────────────
-def local_ip(server_url=None) -> str:
+def agent_id(config=None):
+    override = (config or {}).get('agent_id')
+    if override:
+        if not re.fullmatch(r'[0-9a-f]{64}', override):
+            raise ValueError('agent_id override must be 64 lowercase hexadecimal characters')
+        return override
+    if IS_WINDOWS:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Cryptography',
+                            0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+            machine = winreg.QueryValueEx(key, 'MachineGuid')[0]
+        family = 'windows'
+    else:
+        machine = ''
+        for path in ('/etc/machine-id', '/var/lib/dbus/machine-id'):
+            try:
+                machine = Path(path).read_text(encoding='ascii').strip()
+            except OSError:
+                continue
+            if machine:
+                break
+        family = 'linux'
+    if not machine or not re.fullmatch(r'[0-9a-fA-F-]{32,36}', machine.strip()):
+        raise RuntimeError('OS machine identity missing; configure a unique agent_id before starting')
+    return hashlib.sha256(('netguard:' + family + ':' + machine.strip().lower()).encode('utf-8')).hexdigest()
+
+
+class SingleInstance:
+    """OS-owned lock, independent of install directory, IP and display name."""
+    def __init__(self):
+        self.handle = None
+        self.kernel = None
+        self.sock = None
+
+    def acquire(self):
+        if IS_WINDOWS:
+            from ctypes import wintypes
+            self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+            self.kernel.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+            self.kernel.CreateMutexW.restype = wintypes.HANDLE
+            self.kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+            self.kernel.WaitForSingleObject.restype = wintypes.DWORD
+            self.kernel.ReleaseMutex.argtypes = [wintypes.HANDLE]
+            self.kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = self.kernel.CreateMutexW(None, False, 'Global\\NetGuardAgent.Main.v1')
+            if not handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+            result = self.kernel.WaitForSingleObject(handle, 0)
+            if result in (0, 0x80):  # Acquired, including abandoned owner after a crash.
+                self.handle = handle
+                return True
+            error_code = ctypes.get_last_error()
+            self.kernel.CloseHandle(handle)
+            if result == 0x102:
+                return False
+            raise ctypes.WinError(error_code)
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            # Abstract namespace: cross-user and automatically released on exit.
+            self.sock.bind('\0netguard-agent.main.v1')
+            return True
+        except OSError as exc:
+            self.close()
+            if exc.errno == errno.EADDRINUSE:
+                return False
+            raise
+
+    def close(self):
+        if self.handle:
+            self.kernel.ReleaseMutex(self.handle)
+            self.kernel.CloseHandle(self.handle)
+            self.handle = None
+        if self.sock:
+            self.sock.close()
+            self.sock = None
+
+
+def local_ip(server_url=None, report_ip=None) -> str:
     target = urlsplit(normalize_server_url(server_url or DEFAULT_CONFIG['server_url']))
     port = target.port or (443 if target.scheme == 'https' else 80)
     # UDP connect selects the local route without sending a packet.
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+        if report_ip:
+            address = ipaddress.IPv4Address(report_ip)
+            if address.is_unspecified or address.is_multicast or address.is_link_local:
+                raise ValueError('report_ip must be a local unicast IPv4 address')
+            connection.bind((str(address), 0))
         connection.connect((target.hostname, port))
         return connection.getsockname()[0]
 
@@ -498,6 +584,8 @@ def run_security_checks(cfg: dict, base: str, key: str, ip: str, logger):
 class SoftwareInventoryWorker:
     def __init__(self, cfg, logger):
         self.options = cfg.get('software_inventory') or {}
+        self.report_ip = cfg.get('_report_ip')
+        self.agent_id = cfg.get('_agent_id')
         self.logger = logger
         self.process = None
         self.started = 0.0
@@ -529,16 +617,19 @@ class SoftwareInventoryWorker:
             self.logger.warning('Software inventory helper missing; update all agent files')
             self.next_run = now + 3600
             return
-        self.process = subprocess.Popen([sys.executable, str(worker), '--config', str(CONFIG_FILE), '--send'],
+        args = [sys.executable, str(worker), '--config', str(CONFIG_FILE), '--send']
+        if self.report_ip:
+            args += ['--report-ip', self.report_ip]
+        if self.agent_id:
+            args += ['--agent-id', self.agent_id]
+        self.process = subprocess.Popen(args,
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(SCRIPT_DIR),
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0)
         self.started = now
-        self.logger.info('Software inventory started in background (agent 1.2.65)')
+        self.logger.info('Software inventory started in background (agent 1.2.67)')
 
 
-def main():
-    cfg    = load_config()
-    logger = setup_logging(cfg.get("log_file", ""))
+def run_agent(cfg, logger):
     base   = cfg["server_url"]
     key    = cfg["api_key"]
 
@@ -548,13 +639,17 @@ def main():
     logger.info(f"  psutil  : {'available' if HAS_PSUTIL else 'not found (stdlib fallback)'}")
     logger.info(f"  Interval: {cfg['interval']}s")
 
-    ip = local_ip(base)
+    ip = local_ip(base, cfg.get('report_ip'))
+    identity = agent_id(cfg)
+    cfg['_report_ip'], cfg['_agent_id'] = ip, identity
+    logger.info('Agent identity: %s; report IP: %s; PID: %s', identity, ip, os.getpid())
 
     # 초기 장치 등록
     try:
         post_json(f"{base}/api/agent/register", {
             "hostname":    cfg["hostname"],
             "ip_address":  ip,
+            "agent_id":    identity,
             "device_type": cfg["device_type"],
             "location":    cfg["location"],
             "os":          platform.platform(),
@@ -576,6 +671,7 @@ def main():
             payload = {
                 "hostname":   cfg["hostname"],
                 "ip_address": ip,
+                "agent_id": identity,
                 **metrics,
             }
             post_json(f"{base}/api/agent/metrics", payload, key)
@@ -590,8 +686,6 @@ def main():
                 run_security_checks(cfg, base, key, ip, logger)
                 hours = float(check_cfg.get("interval_hours") or 24)
                 next_check_at = time.time() + max(1.0, hours) * 3600
-        except error.URLError as e:
-            logger.warning(f"Network error: {e}")
         except error.HTTPError as e:
             body = e.read().decode(errors="replace")
             if e.code == 404:
@@ -601,6 +695,7 @@ def main():
                     post_json(f"{base}/api/agent/register", {
                         "hostname":    cfg["hostname"],
                         "ip_address":  ip,
+                        "agent_id":    identity,
                         "device_type": cfg["device_type"],
                         "location":    cfg["location"],
                         "os":          platform.platform(),
@@ -609,6 +704,8 @@ def main():
                     pass
             else:
                 logger.error(f"HTTP {e.code}: {body[:200]}")
+        except error.URLError as e:
+            logger.warning(f"Network error: {e}")
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
 
@@ -619,6 +716,19 @@ def main():
         elapsed = time.time() - start
         sleep_sec = max(1, cfg["interval"] - elapsed)
         time.sleep(sleep_sec)
+
+def main():
+    cfg = load_config()
+    logger = setup_logging(cfg.get('log_file', ''))
+    guard = SingleInstance()
+    try:
+        if not guard.acquire():
+            logger.warning('Another NetGuard agent is already running; duplicate process exits without sending')
+            return
+        run_agent(cfg, logger)
+    finally:
+        guard.close()
+
 
 if __name__ == "__main__":
     main()

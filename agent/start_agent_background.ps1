@@ -156,6 +156,7 @@ if (Test-Path $log) { $before = (Get-Item $log).LastWriteTime }
 
 $svc = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
 if ($svc) {
+    Disable-AgentServiceDuplicateTask -TaskName $TaskName
     if ($Restart -and $svc.Status -ne "Stopped") {
         Write-Step "Stopping Windows service: $ServiceName"
         Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue

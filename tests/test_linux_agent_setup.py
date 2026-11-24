@@ -272,7 +272,7 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
         thread.start()
         cfg = self.target / 'agent_config.json'
         config = json.loads(cfg.read_text())
-        config.update(server_url='http://127.0.0.1:' + str(server.server_port), interval=1)
+        config.update(server_url='http://127.0.0.1:' + str(server.server_port), interval=1, agent_id='a' * 64)
         cfg.write_text(json.dumps(config))
         process = subprocess.Popen(['runuser', '-u', 'ngagent', '--', sys.executable, '-B', '-u', str(self.target / 'netguard_agent.py')],
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=os.setsid)
@@ -289,6 +289,12 @@ elif args[0] == 'is-enabled': print('disabled' if os.getenv('NG_TEST_DISABLED') 
             self.assertTrue(inventory['items'])
             self.assertTrue(all(body['ip_address'] == '127.0.0.1' for path, body in reports))
             self.assertTrue(all(body['hostname'] == custom_name for path, body in reports))
+            self.assertTrue(all(body['agent_id'] == 'a' * 64 for path, body in reports))
+            # A second copy as root must not race the ngagent service account.
+            duplicate = subprocess.run([sys.executable, '-B', '-u', str(self.target / 'netguard_agent.py')],
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10)
+            self.assertEqual(duplicate.returncode, 0, duplicate.stderr)
+            self.assertIn(b'already running', duplicate.stdout)
         finally:
             if process.poll() is None: os.killpg(process.pid, signal.SIGTERM)
             process.communicate(timeout=10)

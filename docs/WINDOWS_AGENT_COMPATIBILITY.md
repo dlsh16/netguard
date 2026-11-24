@@ -59,6 +59,8 @@ $LASTEXITCODE
 
 ## 기존 에이전트 갱신
 
+> v1.2.67 적용 시 [중앙 서버 패치](AGENT_IDENTITY_GUIDE.md)를 먼저 완료한다. 아래 `$source`/백업명은 v1.2.67로 변경한다. 같은 9개 코드를 교체하며 설정을 보존한다. 아래의 '중앙 서버 변경 없음'은 v1.2.64에만 해당한다.
+
 기존 `agent_config.json`을 유지하려면 install.bat를 다시 실행하지 않는다. 아래는 Windows PowerShell 5.1, 기존 설치 경로 `C:\NetGuard-Agent` 기준이다. 백업에는 API 키가 있으므로 관리자만 접근하도록 보호한다. 명령 중 실패하면 다음 단계로 넘어가지 않고 원인을 확인한다.
 
 ```powershell

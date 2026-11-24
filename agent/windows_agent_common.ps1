@@ -43,6 +43,24 @@ function Test-AgentIPv4 {
 }
 
 function Get-AgentIPv4 {
+    param([string]$ServerUrl, [string]$ReportIP)
+    if ($ServerUrl) {
+        if ($ServerUrl -notmatch '^https?://') { $ServerUrl = 'http://' + $ServerUrl }
+        $target = [Uri]$ServerUrl
+        $remote = @([Net.Dns]::GetHostAddresses($target.DnsSafeHost) | Where-Object { $_.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetwork })
+        if ($remote.Count -eq 0) { throw 'NetGuard server has no IPv4 route target' }
+        $socket = New-Object Net.Sockets.Socket([Net.Sockets.AddressFamily]::InterNetwork, [Net.Sockets.SocketType]::Dgram, [Net.Sockets.ProtocolType]::Udp)
+        try {
+            if ($ReportIP) {
+                $address = [Net.IPAddress]::Parse($ReportIP)
+                if ($address.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork -or
+                    $ReportIP -match '^(0\.|169\.254\.|22[4-9]\.|23[0-9]\.)') { throw 'report_ip must be a local unicast IPv4 address' }
+                $socket.Bind((New-Object Net.IPEndPoint($address, 0)))
+            }
+            $socket.Connect((New-Object Net.IPEndPoint($remote[0], $target.Port)))
+            return $socket.LocalEndPoint.Address.ToString()
+        } finally { $socket.Dispose() }
+    }
     if (Get-Command Get-NetIPAddress -ErrorAction SilentlyContinue) {
         try {
             $addresses = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction Stop |
@@ -61,6 +79,35 @@ function Get-AgentIPv4 {
         }
     }
     throw 'No usable IPv4 address found. Check the network adapter; loopback/APIPA will not be registered.'
+}
+
+function Get-AgentIdentity {
+    param($Config)
+    if ($Config.agent_id) {
+        if ([string]$Config.agent_id -cnotmatch '^[0-9a-f]{64}$') { throw 'agent_id override must be 64 lowercase hexadecimal characters' }
+        return [string]$Config.agent_id
+    }
+    $root = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)
+    try {
+        $key = $root.OpenSubKey('SOFTWARE\Microsoft\Cryptography')
+        try { $machine = [string]$key.GetValue('MachineGuid') } finally { if ($key) { $key.Dispose() } }
+    } finally { $root.Dispose() }
+    if ($machine.Trim() -notmatch '^[0-9a-fA-F-]{32,36}$') { throw 'OS machine identity missing; configure a unique agent_id before starting' }
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes('netguard:windows:' + $machine.Trim().ToLowerInvariant())))).Replace('-', '').ToLowerInvariant()
+    } finally { $sha.Dispose() }
+}
+
+function Enter-AgentInstance {
+    $mutex = New-Object Threading.Mutex($false, 'Global\NetGuardAgent.Main.v1') -ErrorAction Stop
+    try {
+        try { $acquired = $mutex.WaitOne(0) }
+        catch [Threading.AbandonedMutexException] { $acquired = $true }
+        if ($acquired) { return $mutex }
+        $mutex.Dispose()
+        return $null
+    } catch { $mutex.Dispose(); throw }
 }
 
 function Get-AgentTaskFolder {
@@ -90,6 +137,16 @@ function Stop-AgentTask {
     param([string]$TaskName)
     $task = Get-AgentTask $TaskName
     if ($task -and (@('Running', 'Queued') -contains $task.State)) { $task.NativeTask.Stop(0) }
+}
+
+function Disable-AgentServiceDuplicateTask {
+    param([string]$TaskName)
+    $task = Get-AgentTask $TaskName
+    if ($task) {
+        # The caller has confirmed the Windows service exists; keep one owner.
+        $task.NativeTask.Enabled = $false
+        if (@('Running', 'Queued') -contains $task.State) { $task.NativeTask.Stop(0) }
+    }
 }
 
 function Remove-AgentTask {

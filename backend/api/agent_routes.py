@@ -3,15 +3,17 @@ NetGuard Agent API — SNMP 불가 환경에서 에이전트가 직접 메트릭
 """
 import base64
 import logging
+import ipaddress
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from database import get_db_pool
 from event_utils import save_event_once
 from software_inventory import SoftwareReport, save_inventory
+from agent_identity import AgentIdentity, report_device
 
 logger = logging.getLogger("netguard.agent")
 
@@ -29,7 +31,16 @@ DEFAULT_THRESHOLDS = {
 
 
 # ── 요청 모델 ──────────────────────────────────────────────────────────────────
-class RegisterRequest(BaseModel):
+class AgentAddress(AgentIdentity):
+    ip_address: str
+
+    @field_validator('ip_address')
+    @classmethod
+    def valid_address(cls, value):
+        return str(ipaddress.ip_address(value))
+
+
+class RegisterRequest(AgentAddress):
     hostname:    str
     ip_address:  str
     device_type: str = "server"
@@ -37,7 +48,7 @@ class RegisterRequest(BaseModel):
     os:          str = ""
 
 
-class MetricsRequest(BaseModel):
+class MetricsRequest(AgentAddress):
     hostname:     str
     ip_address:   str
     cpu_pct:      float = 0.0
@@ -112,45 +123,51 @@ async def _unique_device_name(conn, desired: str, device_id: int, ip_address: st
 
 
 async def _upsert_device(conn, req: RegisterRequest) -> int:
+    # Serialize first registration/adoption and IP changes across API workers.
+    async with conn.transaction():
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('netguard_agent_registration'))")
+        return await _upsert_device_locked(conn, req)
+
+
+async def _upsert_device_locked(conn, req: RegisterRequest) -> int:
     hostname = _limit_text(req.hostname, 100) or req.ip_address
     device_type = _limit_text(req.device_type, 20) or "server"
     os_version = _limit_text(req.os, 200)
     location = _limit_text(req.location, 200)
-    row = await conn.fetchrow(
-        "SELECT id FROM devices WHERE ip_address = $1::inet", req.ip_address
-    )
+    by_ip = await conn.fetch("SELECT id, type, agent_id FROM devices WHERE ip_address=$1::inet", req.ip_address)
+    if len(by_ip) > 1:
+        raise HTTPException(409, 'Multiple devices already use this IP. Review existing devices before registering.')
+    row = None
+    if req.agent_id:
+        row = await conn.fetchrow("SELECT id, type, agent_id FROM devices WHERE agent_id=$1", req.agent_id)
+        if row and by_ip and by_ip[0]['id'] != row['id']:
+            raise HTTPException(409, 'Agent IP belongs to another device. Existing histories were not merged.')
+    if row is None and by_ip:
+        row = by_ip[0]
+        if req.agent_id and row['agent_id'] not in (None, req.agent_id):
+            raise HTTPException(409, 'IP is bound to another agent identity. Check cloned machines or duplicate agents.')
+    if row is None:
+        by_name = await conn.fetchrow("SELECT id, type, agent_id FROM devices WHERE name=$1", hostname)
+        if by_name:
+            if req.agent_id or by_name['agent_id']:
+                raise HTTPException(409, 'Same name exists at another IP. Verify identity before adopting an existing device; no automatic merge.')
+            row = by_name  # Compatibility for unupgraded agents only.
     if row:
-        hostname = await _unique_device_name(conn, hostname, row["id"], req.ip_address)
-        await conn.execute(
-            """UPDATE devices
-               SET name=$1, type=$2, snmp_version='agent', os_version=$3,
-                   location=$4, enabled=TRUE, updated_at=NOW()
-               WHERE id=$5""",
-            hostname, device_type, os_version, location, row["id"],
-        )
-        return row["id"]
-    else:
-        row = await conn.fetchrow("SELECT id FROM devices WHERE name=$1 LIMIT 1", hostname)
-        if row:
-            await conn.execute(
-                """UPDATE devices
-                   SET ip_address=$1::inet, type=$2, snmp_version='agent',
-                       os_version=$3, location=$4, enabled=TRUE, updated_at=NOW()
-                   WHERE id=$5""",
-                req.ip_address, device_type, os_version, location, row["id"],
-            )
-            return row["id"]
-        device_id = await conn.fetchval(
-            """INSERT INTO devices
-                   (name, type, ip_address, snmp_version, os_version, location, enabled)
-               VALUES ($1, $2, $3::inet, 'agent', $4, $5, TRUE)
-               RETURNING id""",
-            hostname, device_type, req.ip_address,
-            os_version, location,
-        )
-        hostname = await _unique_device_name(conn, hostname, device_id, req.ip_address)
-        await conn.execute("UPDATE devices SET name=$1 WHERE id=$2", hostname, device_id)
-        return device_id
+        if row['type'] != 'server' or device_type != 'server':
+            raise HTTPException(409, 'Agent registration cannot replace a non-server device.')
+        hostname = await _unique_device_name(conn, hostname, row['id'], req.ip_address)
+        await conn.execute('''UPDATE devices SET name=$1, ip_address=$2::inet,
+            snmp_version='agent', os_version=COALESCE($3,os_version),
+            location=COALESCE($4,location), agent_id=COALESCE($5,agent_id),
+            enabled=TRUE, updated_at=NOW() WHERE id=$6''',
+            hostname, req.ip_address, os_version, location, req.agent_id, row['id'])
+        return row['id']
+    if device_type != 'server':
+        raise HTTPException(400, 'Agents must register as server devices')
+    return await conn.fetchval('''INSERT INTO devices
+        (name,type,ip_address,snmp_version,os_version,location,enabled,agent_id)
+        VALUES ($1,'server',$2::inet,'agent',$3,$4,TRUE,$5) RETURNING id''',
+        hostname, req.ip_address, os_version, location, req.agent_id)
 
 
 # ── 임계값 조회 ────────────────────────────────────────────────────────────────
@@ -222,28 +239,9 @@ async def receive_metrics(req: MetricsRequest, x_agent_key: Optional[str] = Head
     now  = datetime.now(timezone.utc)
 
     async with pool.acquire() as conn:
-        # 장치 조회 (없으면 자동 생성)
-        row = await conn.fetchrow(
-            "SELECT id FROM devices WHERE ip_address = $1::inet", req.ip_address
-        )
-        if not row:
-            device_id = await _upsert_device(
-                conn,
-                RegisterRequest(
-                    hostname=req.hostname, ip_address=req.ip_address
-                ),
-            )
-            logger.info(f"[AGENT] Auto-registered: {req.hostname} ({req.ip_address})")
-        else:
-            device_id = row["id"]
-            hostname = await _unique_device_name(conn, req.hostname, device_id, req.ip_address)
-            await conn.execute(
-                """UPDATE devices
-                   SET name=$1, type='server', snmp_version='agent',
-                       enabled=TRUE, updated_at=NOW()
-                   WHERE id=$2""",
-                hostname, device_id,
-            )
+        device_id = await _upsert_device(conn, RegisterRequest(
+            hostname=req.hostname, ip_address=req.ip_address, agent_id=req.agent_id))
+        hostname = await conn.fetchval('SELECT name FROM devices WHERE id=$1', device_id)
 
         # 메트릭 저장 — 기존 SNMP 저장 방식과 동일한 테이블/컬럼명
         metric_rows = [
@@ -271,9 +269,12 @@ async def receive_metrics(req: MetricsRequest, x_agent_key: Optional[str] = Head
                 getattr(req, metric), thresholds, now,
             )
 
+    for old_ip, result in list(AGENT_LIVE_RESULTS.items()):
+        if result.get('device_id') == device_id and old_ip != req.ip_address:
+            del AGENT_LIVE_RESULTS[old_ip]
     AGENT_LIVE_RESULTS[req.ip_address] = {
         "device_id": device_id,
-        "device": hostname if 'hostname' in locals() else req.hostname,
+        "device": hostname,
         "ip": req.ip_address,
         "type": "server",
         "status": "online",
@@ -303,9 +304,7 @@ async def receive_software(req: SoftwareReport, x_agent_key: Optional[str] = Hea
     _verify(x_agent_key)
     pool = await get_db_pool()
     async with pool.acquire() as conn:
-        device_id = await conn.fetchval("SELECT id FROM devices WHERE ip_address=$1::inet AND type='server' AND enabled=TRUE", str(req.ip_address))
-        if device_id is None:
-            raise HTTPException(409, 'Register this server before sending software inventory')
+        device_id = await report_device(conn, req.ip_address, req.agent_id)
         result = await save_inventory(conn, device_id, req)
     logger.info('[AGENT] Software inventory: device=%s status=%s items=%s', device_id, result['status'], result.get('items', 0))
     return result

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, IPvAnyAddress, field_validator, model_validator
+from agent_identity import AgentIdentity
 
 
 Source = Literal['registry', 'rpm', 'dpkg', 'process', 'tomcat', 'configured']
@@ -21,7 +22,7 @@ class SoftwareItem(BaseModel):
     source: Source
 
 
-class SoftwareReport(BaseModel):
+class SoftwareReport(AgentIdentity):
     hostname: str = Field(min_length=1, max_length=100)
     ip_address: IPvAnyAddress
     collected_at: datetime

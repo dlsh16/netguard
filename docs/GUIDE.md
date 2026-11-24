@@ -1,6 +1,8 @@
 ﻿# NetGuard SNMP 통합 모니터링 대시보드 - 설치 및 운영 가이드
 
-> 버전: 1.2.66 | 최종 업데이트: 2026-11-08
+> 버전: 1.2.67 | 최종 업데이트: 2026-11-25
+
+> 최신 Agent 중복/IP 변경 패치: [중앙 서버 및 Windows/Linux 적용·운영 절차](AGENT_IDENTITY_GUIDE.md). 중앙 서버부터 갱신하며 기존 중복 장비는 자동 삭제하지 않는다.
 
 ---
 
@@ -596,6 +598,16 @@ kakao_channel_token: "채널토큰"
 ---
 
 ## 13. 업데이트 내역
+
+### v1.2.67 (2026-11-25) - Agent 중복 실행 및 IP 변경 식별 보완
+
+- Windows/Linux Agent에 IP·표시명과 독립적인 OS 기반 해시 ID를 추가했다. 중앙 서버는 같은 ID의 IP 변경 시 기존 장비/메트릭/소프트웨어 이력을 유지하며 충돌 시 409로 중단한다. 기존 장비/사용자 삭제나 자동 병합은 하지 않는다.
+- Windows 통신 경로 기반 IP 선택, 선택적 report_ip, 메인/인벤토리의 동일 IP·ID 전달, Python HTTP 오류 상세 로그를 보완했다.
+- Windows PowerShell/Python 공통 전역 mutex와 Linux abstract socket으로 중복 메인 프로세스를 차단한다. 서비스가 있으면 같은 이름의 예약 작업은 비활성화/중지한다. 구버전 및 다른 이름의 기동 등록은 운영자가 확인해야 한다.
+- 중앙 서버의 nullable agent_id 컬럼과 고유 인덱스를 추가한다. 서버 먼저, Agent 나중 순서로 배포한다. [진단·업데이트·기존 중복 검토·원복 가이드](AGENT_IDENTITY_GUIDE.md)를 추가했다.
+- 변경 코드: `backend/agent_identity.py`(신규), `backend/api/agent_routes.py`, `backend/database.py`, `backend/software_inventory.py`, `agent/netguard_agent.py/.ps1`, `agent/software_inventory.py/.ps1`, `agent/windows_agent_common.ps1`, `agent/start_agent_background.ps1`, `agent/restart_agent.ps1`.
+- 변경 테스트: 신규 `tests/test_agent_identity_api.py`, `tests/test_agent_instance.py`, `tests/software_fixtures.py`, `tests/test_software_agent.py`, `tests/test_linux_agent_setup.py`. 관련 Windows/Rocky 설치 및 Agent 운영/인벤토리 문서도 갱신했다.
+- 검증: Windows 전체 96개 중 87개 통과/9개 Linux 전용 제외. Rocky 8·9 설치/갱신/실수집 각 17개 통과로 제외된 항목을 확인했다. 잠금 테스트는 Windows PowerShell/Python 상호 운용과 Linux 계정 간 충돌을 포함한다. 실제 운영 서버 적용·재부팅은 수행하지 않았다.
 
 ### v1.2.66 (2026-11-08) - Linux Agent 설치 시 표시 서버명 지정
 

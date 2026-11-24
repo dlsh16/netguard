@@ -12,7 +12,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-AGENT_VERSION = '1.2.65'
+AGENT_VERSION = '1.2.67'
 MAX_ITEMS = 10000
 
 
@@ -169,12 +169,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=Path(__file__).with_name('agent_config.json'))
     parser.add_argument('--send', action='store_true')
+    parser.add_argument('--report-ip')
+    parser.add_argument('--agent-id')
     args = parser.parse_args()
-    from netguard_agent import load_config, local_ip, post_json
+    from netguard_agent import load_config, local_ip, post_json, agent_id
     config = load_config(args.config)
     try:
         report = collect_windows(args.config) if platform.system() == 'Windows' else collect_linux(config.get('software_inventory') or {})
-        report.update(hostname=config['hostname'], ip_address=local_ip(config['server_url']), collected_at=datetime.now(timezone.utc).isoformat(), agent_version=AGENT_VERSION)
+        report.update(hostname=config['hostname'], ip_address=args.report_ip or local_ip(config['server_url'], config.get('report_ip')),
+                      agent_id=agent_id({'agent_id': args.agent_id} if args.agent_id else config),
+                      collected_at=datetime.now(timezone.utc).isoformat(), agent_version=AGENT_VERSION)
         if args.send:
             result = post_json(config['server_url'] + '/api/agent/software', report, config['api_key'], timeout=30)
             print('Software inventory: status={} items={} collection={}'.format(result.get('status'), result.get('items', 0), result.get('collection_status', '')))

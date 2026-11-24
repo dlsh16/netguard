@@ -1,6 +1,8 @@
 # NetGuard Agent Linux 설치 및 운영 매뉴얼
 
-버전: v1.2.66 / 업데이트: 2026-11-08
+버전: v1.2.67 / 업데이트: 2026-11-25
+
+> v1.2.67은 [중앙 서버 선행 패치 및 Agent 갱신](AGENT_IDENTITY_GUIDE.md)을 먼저 따른다. 아래 v1.2.66의 설치·입력·설정 보존 절차는 동일하며 패키지/해제 경로는 v1.2.67로 바꾼다. 현재 수집 보고 버전은 1.2.67이다.
 
 ## 변경 내용
 
@@ -12,7 +14,7 @@
 - 신규 서비스는 절대 Python 경로, ngagent 전용 계정, 네트워크 준비 순서, 비정상 종료 재시도, 부팅 자동 시작을 설정한다.
 - Python 3.6에서 지원하지 않는 보안 점검 subprocess 인자를 호환 방식으로 변경했다. IP 선택은 외부 8.8.8.8 대신 설정한 NetGuard 서버로 향하는 IPv4 경로를 사용한다. 경로/DNS 실패를 127.0.0.1로 위장하지 않는다.
 
-이번 패치는 대상 장비의 에이전트용이다. 중앙 NetGuard 서버, PostgreSQL, NVD를 재설치하거나 재시작하지 않는다. 소프트웨어 검색 기능 자체를 아직 적용하지 않았다면 먼저 [v1.2.63 서버 적용 절차](SOFTWARE_INVENTORY_GUIDE.md)를 따른다.
+v1.2.65~66은 대상 Agent만 변경했지만 **v1.2.67은 중앙 서버 코드 패치와 서비스 재시작도 필요**하다. DB/설정 초기화 및 NVD 재수집은 하지 않는다. 소프트웨어 검색 기능 자체를 아직 적용하지 않았다면 먼저 [v1.2.63 서버 적용 절차](SOFTWARE_INVENTORY_GUIDE.md)를 따른다.
 
 ## 사전 조건
 
@@ -29,7 +31,7 @@
 
 ## 패키지 및 점검
 
-`NetGuard-Agent-Linux-v1.2.66.zip`을 반입하고 `/tmp/netguard-agent-v1266`처럼 별도 폴더에 해제한다. 운영 `/opt/netguard-agent`에 ZIP 전체를 직접 덮어쓰지 않는다. 이번 버전은 설치기 변경이며 수집 코드/보고 버전은 v1.2.65 그대로다.
+`NetGuard-Agent-Linux-v1.2.67.zip`을 반입하고 `/tmp/netguard-agent-v1267`처럼 별도 폴더에 해제한다. 운영 `/opt/netguard-agent`에 ZIP 전체를 직접 덮어쓰지 않는다. v1.2.67 수집 코드/보고 버전은 1.2.67이며 중앙 서버 패치를 먼저 적용한다.
 
 ```text
 agent/
@@ -45,8 +47,8 @@ docs/
 
 ```bash
 python3 --version
-python3 -m zipfile -e /tmp/NetGuard-Agent-Linux-v1.2.66.zip /tmp/netguard-agent-v1266
-cd /tmp/netguard-agent-v1266
+python3 -m zipfile -e /tmp/NetGuard-Agent-Linux-v1.2.67.zip /tmp/netguard-agent-v1267
+cd /tmp/netguard-agent-v1267
 sudo bash scripts/install_agent_linux.sh --check
 ```
 
