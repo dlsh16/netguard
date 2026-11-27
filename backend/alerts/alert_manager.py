@@ -221,19 +221,8 @@ class AlertManager:
         return alerts
 
     def _check_switch(self, name: str, metrics: dict) -> List[dict]:
-        alerts = []
-        for iface in metrics.get("interfaces", []):
-            status = iface.get("status")
-            port_id = iface.get("index", iface.get("name", "unknown"))
-            state_key = f"{name}.{port_id}"
-            previous_status = self._switch_port_status.get(state_key)
-            if previous_status == "up" and status == "down":
-                alerts.append(self._build_alert(
-                    name, "critical", "네트워크", f"포트 {iface['name']} 다운 감지"
-                ))
-            if status in ("up", "down"):
-                self._switch_port_status[state_key] = status
-        return alerts
+        # Persisted, debounced transitions are handled by switch_links.
+        return []
 
     def _check_ups(self, name: str, metrics: dict) -> List[dict]:
         alerts = []

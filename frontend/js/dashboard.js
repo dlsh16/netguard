@@ -608,6 +608,10 @@ function renderPage(page) {
 
 // ===== SIDEBAR =====
 function toggleSidebar() {
+  if (window.matchMedia('(max-width:700px)').matches) {
+    document.getElementById('sidebar').classList.toggle('mobile-open');
+    return;
+  }
   document.getElementById('sidebar').classList.toggle('collapsed');
 }
 
@@ -1350,11 +1354,12 @@ async function renderProcesses() {
 
 // ===== SECURITY =====
 async function renderSecurity() {
-  await window.SecuritySearch.render();
+  await window.NetGuardOperations.security();
 }
 
 // ===== SCRIPT CHECK RESULTS =====
 async function renderSecurityChecks() {
+  window.NetGuardOperations.checks();
   if (!state.checkResults._loaded) { await loadCheckResults(); }
   const summary = state.checkResults.summary || {};
   setEl('check-summary-runs', summary.run_count ?? 0);
@@ -1384,16 +1389,24 @@ function renderCheckRuns() {
     const fileName = r.report_file || r.report_title || '--';
     return `<tr>
       <td style="font-family:var(--mono);white-space:nowrap;font-size:11px">${new Date(r.completed_at).toLocaleString('ko-KR')}</td>
-      <td><span class="badge info">${r.run_type}</span></td>
-      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${fileName}">${fileName}</td>
+      <td><span class="badge info">${escapeHtml(r.run_type)}</span></td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(fileName)}">${escapeHtml(fileName)}</td>
       <td><span class="badge critical">${r.fail_count || 0}</span> <span class="badge medium">${r.warn_count || 0}</span> <span class="badge info">${r.result_count || 0}</span></td>
       <td style="white-space:nowrap">
-        <button class="btn-sm" onclick="showCheckRunResults(${r.id}, '${String(r.report_title || '').replace(/'/g, "\\'")}')">상세</button>
-        ${r.report_file_id ? `<button class="btn-sm" onclick="downloadCheckReport(${r.report_file_id}, '${String(fileName).replace(/'/g, "\\'")}')">원본</button>` : ''}
+        <button class="btn-sm" data-check-detail="${Number(r.id)}">상세</button>
+        ${r.report_file_id ? `<button class="btn-sm" data-check-file="${Number(r.id)}">원본</button>` : ''}
         ${isAdminUser() ? `<button class="btn-sm" style="color:var(--red)" onclick="deleteCheckRun(${r.id})">삭제</button>` : ''}
       </td>
     </tr>`;
   }).join('');
+  tbody.onclick = event => {
+    const button = event.target.closest('button');
+    if (!button) return;
+    const row = rows.find(r => Number(r.id) === Number(button.dataset.checkDetail || button.dataset.checkFile));
+    if (!row) return;
+    if (button.dataset.checkDetail) showCheckRunResults(row.id, row.report_title || '');
+    if (button.dataset.checkFile) downloadCheckReport(row.report_file_id, row.report_file || row.report_title || 'report.csv');
+  };
 }
 
 function renderCheckServerSummary() {
@@ -1405,8 +1418,8 @@ function renderCheckServerSummary() {
     return;
   }
   tbody.innerHTML = rows.map(r => `<tr>
-    <td style="font-weight:600">${r.hostname || '--'}</td>
-    <td style="font-family:var(--mono)">${r.ip_address || '--'}</td>
+    <td style="font-weight:600">${escapeHtml(r.hostname || '--')}</td>
+    <td style="font-family:var(--mono)">${escapeHtml(r.ip_address || '--')}</td>
     <td><span class="badge critical">${r.fail_count || 0}</span></td>
     <td><span class="badge medium">${r.warn_count || 0}</span></td>
     <td style="font-size:11px;color:var(--text-muted)">${r.last_checked_at ? new Date(r.last_checked_at).toLocaleString('ko-KR') : '--'}</td>
@@ -1426,11 +1439,11 @@ async function showCheckRunResults(id, title) {
     }
     tbody.innerHTML = rows.map(r => `<tr>
       <td>${checkStatusBadge(r.result_status)}</td>
-      <td style="font-weight:600">${r.hostname || '--'}</td>
-      <td><div style="font-family:var(--mono);color:var(--accent);font-size:11px">${r.code}</div>${r.item_name || ''}</td>
-      <td>${r.category || '--'}</td>
-      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.result_value || r.evidence || ''}">${r.result_value || r.evidence || '--'}</td>
-      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.recommendation || ''}">${r.recommendation || '--'}</td>
+      <td style="font-weight:600">${escapeHtml(r.hostname || '--')}</td>
+      <td><div style="font-family:var(--mono);color:var(--accent);font-size:11px">${escapeHtml(r.code)}</div>${escapeHtml(r.item_name || '')}</td>
+      <td>${escapeHtml(r.category || '--')}</td>
+      <td class="ops-evidence">${escapeHtml(r.result_value || r.evidence || '--')}</td>
+      <td class="ops-evidence">${escapeHtml(r.recommendation || '--')}</td>
     </tr>`).join('');
   } catch (e) {
     tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--red);padding:24px">상세 결과 로드 실패</td></tr>';

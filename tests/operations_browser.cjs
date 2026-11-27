@@ -1,0 +1,47 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const base=process.env.NETGUARD_PREVIEW_URL||'http://127.0.0.1:8772';
+const out='E:/SNMP/outputs/netguard-v1268';
+fs.mkdirSync(out,{recursive:true});
+(async()=>{
+ const browser=await chromium.launch({headless:true,channel:'chrome'});
+ const page=await browser.newPage({viewport:{width:1600,height:1000}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto(base);await page.locator('.ops-advisory').first().waitFor();
+  assert.match(await page.locator('#ops-advisory-list').innerText(),/서버 A/);
+  assert.match(await page.locator('#ops-sync-status').innerText(),/2026/);
+  await page.screenshot({path:out+'/advisories-desktop.png',fullPage:true});
+  await page.locator('#ops-advisory-query').fill('no-match');await page.locator('#ops-advisory-query').press('Enter');
+  await page.waitForFunction(()=>document.querySelector('#ops-advisory-list').innerText.includes('수신된 보안공지가 없습니다'));
+  await page.locator('#ops-advisory-query').fill('PHP');await page.locator('#ops-advisory-query').press('Enter');await page.locator('.ops-advisory').waitFor();
+  await page.locator('#ops-nvd-tab').click();await page.locator('.vs-results').waitFor();
+  await page.locator('#ops-advisory-tab').click();
+  await page.locator('[data-page="security-checks"]').click();await page.locator('[data-check="security"]').first().waitFor();
+  await page.screenshot({path:out+'/checks-desktop.png',fullPage:true});
+  page.on('dialog',d=>d.accept());
+  await page.locator('[data-device="1"][data-check="security"]').click();
+  await page.waitForFunction(()=>document.querySelector('#ops-check-jobs').innerText.includes('대기'));
+  assert.equal(await page.locator('[data-device="1"][data-check="security"]').isDisabled(),true);
+  await page.locator('[data-cancel]').click();await page.waitForFunction(()=>document.querySelector('#ops-check-jobs').innerText.includes('취소'));
+  await page.locator('#ops-check-device').selectOption('2');await page.locator('#ops-check-filter button[type=submit]').click();
+  await page.waitForFunction(()=>!document.querySelector('#ops-check-jobs').innerText.includes('서버 A'));
+  await page.locator('[data-run]').first().click();
+  await page.waitForFunction(()=>document.querySelector('#check-results-tbody').innerText.includes('권한 점검'));
+  assert.match(await page.locator('#check-results-tbody').innerText(),/서버 B/);
+  await page.locator('[data-page="devices"]').click();
+  const downloadPromise=page.waitForEvent('download');await page.locator('#ops-export-assets').click();const download=await downloadPromise;await download.saveAs(out+'/NetGuard-assets-sample.xlsx');
+  await page.setViewportSize({width:390,height:844});
+  await page.evaluate(()=>navigateTo('security'));await page.locator('.ops-advisory').waitFor();
+  await page.screenshot({path:out+'/advisories-mobile.png',fullPage:true});
+  const overflow=await page.evaluate(()=>({body:document.documentElement.scrollWidth-innerWidth,page:document.querySelector('#page-security').scrollWidth-document.querySelector('#page-security').clientWidth}));
+  assert.ok(Object.values(overflow).every(v=>v<=2),JSON.stringify(overflow));
+  await page.evaluate(()=>navigateTo('security-checks'));await page.screenshot({path:out+'/checks-mobile.png',fullPage:true});
+  await page.goto(base+'?role=operator');await page.locator('.ops-advisory').waitFor();
+  assert.equal(await page.locator('#ops-sync').isVisible(),false);
+  await page.evaluate(()=>navigateTo('security-checks'));await page.locator('#ops-check-servers tr').first().waitFor();
+  assert.equal(await page.locator('[data-check]').count(),0);
+  assert.deepEqual(errors,[]);console.log('Browser workflows passed: RSS/search/NVD/remote request/cancel/filter/export/operator/mobile');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});

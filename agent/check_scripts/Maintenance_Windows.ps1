@@ -15,7 +15,8 @@
 [CmdletBinding()]
 param(
     [string]$OutputDir = "",
-    [switch]$NoOpen
+    [switch]$NoOpen,
+    [switch]$Unattended
 )
 
 Set-StrictMode -Off
@@ -1102,8 +1103,9 @@ Write-Host "  ══════════════════════
 
 # ── 네트워크 공유 설정 ────────────────────────────────────────────
 $NasShare = "\\10.60.8.169\Server_maintenance"
-$NasUser  = "maintenance"
-$NasPass  = "veQ5vU3&"
+$NasShare = $env:NETGUARD_REPORT_SHARE
+$NasUser = $env:NETGUARD_REPORT_USER
+$NasPass = $env:NETGUARD_REPORT_PASSWORD
 
 # ── 파일명: [호스트명]_[IP]_[날짜] ──────────────────────────────
 $dateStr  = (Get-Date).ToString("yyyyMMdd")
@@ -1123,6 +1125,7 @@ Write-Host "    HTML: $htmlPath" -ForegroundColor White
 Write-Host "    CSV : $csvPath" -ForegroundColor White
 
 # ── 네트워크 공유 저장 ────────────────────────────────────────────
+if (-not $Unattended -and $NasShare) {
 Write-Host ""
 Write-Host "  네트워크 공유 저장 중... ($NasShare)" -ForegroundColor Cyan
 $netOut = (net use $NasShare /user:$NasUser $NasPass 2>&1) -join " "
@@ -1148,6 +1151,7 @@ if ($connected) {
     Write-Host "    $netOut" -ForegroundColor DarkGray
 }
 
+}
 if (-not $NoOpen -and (Test-Path $htmlPath)) {
     Start-Process $htmlPath
 }

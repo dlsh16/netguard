@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+[[ $# == 2 && $2 =~ ^[1-9][0-9]{0,18}$ ]] || exit 64
+case "$1" in
+    security) script=cve_check_linux.sh ;;
+    maintenance) script=maintenance_linux.sh ;;
+    *) exit 64 ;;
+esac
+umask 027
+output="/var/lib/netguard-checks/$2"
+# Root-owned parent and exclusive mkdir prevent replay and symlink substitution.
+mkdir -- "$output"
+chown root:ngagent "$output"
+chmod 0750 "$output"
+export NETGUARD_CHECK_OUTPUT="$output"
+export NETGUARD_CHECK_UNATTENDED=1
+timeout --kill-after=10s 1800s /bin/bash "/usr/local/libexec/netguard-checks/$script" </dev/null >"$output/runner.log" 2>&1
+chown -R root:ngagent "$output"
+chmod -R g+rX,o-rwx "$output"

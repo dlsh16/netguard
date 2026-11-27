@@ -1,7 +1,7 @@
 ﻿# NetGuard SNMP Dashboard
 # Rocky Linux 설치 및 운영 메뉴얼
 
-> 2026-11-25 / v1.2.67: [Agent 중복/IP 식별 설치·운영 절차](AGENT_IDENTITY_GUIDE.md)의 Rocky 중앙 서버 패치 후 Agent를 갱신한다. 서버 재시작 시 nullable 컬럼/인덱스만 추가하며 DB/설정을 초기화하지 않는다.
+> 2026-11-27 / v1.2.68: [RSS·원격 점검·XLSX·링크 감지 설치](OPERATIONS_UPDATE_GUIDE.md) 및 [Rocky 운영 메뉴얼](OPERATIONS_ROCKY.md)을 먼저 따른다. 중앙 서버부터 갱신하며 기존 DB/설정을 초기화하지 않는다. 아래는 이전 설치 이력이다.
 
 > 2026-11-08 / v1.2.66 추가: Linux Agent 신규 설치 시 NetGuard에 표시할 서버명을 입력할 수 있다. 빈 입력은 OS 호스트명, 입력값은 표시명으로 사용한다. OS 이름은 바꾸지 않으며 기존 업데이트는 저장된 이름을 보존한다. [신규 설치 및 기존 장비 이름 변경](agent_install_linux.md)을 참고한다.
 

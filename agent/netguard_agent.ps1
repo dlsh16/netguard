@@ -314,7 +314,7 @@ function Update-SoftwareInventoryWorker {
         & $path -Send -ReportIP $ip -AgentId $id
     } -ArgumentList $helper, $Config._report_ip, $Config._agent_id
     $script:SoftwareInventoryStarted = Get-Date
-    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.67)'
+    Write-Log 'INFO' 'Software inventory started in background (agent 1.2.68)'
 }
 
 function Start-AgentMain {
@@ -380,6 +380,16 @@ while ($true) {
         Write-Log "WARN" "Send failed: $_"
     }
     try { Update-SoftwareInventoryWorker $cfg } catch { Write-Log 'WARN' "Software inventory worker: $_" }
+    if ($cfg.remote_checks.enabled) {
+        if ($script:RemoteCheckJob -and $script:RemoteCheckJob.State -ne 'Running') {
+            Receive-Job $script:RemoteCheckJob -ErrorAction Continue | ForEach-Object { Write-Log 'INFO' ([string]$_) }
+            Remove-Job $script:RemoteCheckJob -Force
+            $script:RemoteCheckJob = $null
+        }
+        if (-not $script:RemoteCheckJob) {
+            $script:RemoteCheckJob = Start-Job -ScriptBlock { param($path) & $path } -ArgumentList (Join-Path $ScriptDir 'remote_checks.ps1')
+        }
+    }
     $elapsed = ((Get-Date) - $start).TotalSeconds
     $sleep   = [math]::Max(1, $cfg.interval - $elapsed)
     Start-Sleep -Seconds ([int]$sleep)
@@ -395,6 +405,10 @@ try {
     }
     Start-AgentMain
 } finally {
+    if ($script:RemoteCheckJob) {
+        Stop-Job $script:RemoteCheckJob -ErrorAction SilentlyContinue
+        Remove-Job $script:RemoteCheckJob -Force -ErrorAction SilentlyContinue
+    }
     if ($script:SoftwareInventoryJob) {
         Stop-Job $script:SoftwareInventoryJob -ErrorAction SilentlyContinue
         Remove-Job $script:SoftwareInventoryJob -Force -ErrorAction SilentlyContinue

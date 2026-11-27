@@ -29,7 +29,7 @@ def validate_config(config):
     for key in ('hostname', 'location', 'log_file', 'device_type'):
         if key in config and not isinstance(config[key], str):
             raise ValueError(key + ' must be a string')
-    for key in ('software_inventory', 'security_checks'):
+    for key in ('software_inventory', 'security_checks', 'remote_checks'):
         if config.get(key) is not None and not isinstance(config[key], dict):
             raise ValueError(key + ' must be a JSON object')
     return config
@@ -51,11 +51,12 @@ def new_config(env):
         'hostname': hostname, 'device_type': env['NG_TYPE'],
         'location': env['NG_LOCATION'], 'log_file': '/opt/netguard-agent/agent.log',
         'software_inventory': {'enabled': True, 'interval_hours': 6, 'tomcat_homes': [], 'extra_software': []},
+        'remote_checks': {'enabled': False, 'token': ''},
     })
 
 
 def check_files(source, config_path, installed=False):
-    for name in ('netguard_agent.py', 'software_inventory.py'):
+    for name in ('netguard_agent.py', 'software_inventory.py', 'remote_checks.py'):
         path = Path(source) / name
         compile(path.read_bytes(), str(path), 'exec')
     if not (Path(source) / 'restart_agent.sh').is_file():

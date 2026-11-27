@@ -140,7 +140,7 @@ if ($Collect -or $Send) {
     $report.ip_address = if ($ReportIP) { $ReportIP } else { Get-AgentIPv4 -ServerUrl $config.server_url -ReportIP $config.report_ip }
     $report.agent_id = if ($AgentId) { Get-AgentIdentity @{agent_id=$AgentId} } else { Get-AgentIdentity $config }
     $report.collected_at = [DateTime]::UtcNow.ToString('o')
-    $report.agent_version = '1.2.67'
+    $report.agent_version = '1.2.68'
     $json = $report | ConvertTo-Json -Depth 8 -Compress
     if ($Send) {
         $base = [string]$config.server_url

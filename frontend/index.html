@@ -6,6 +6,7 @@
   <title>SNMP 통합 모니터링 대시보드</title>
   <link rel="stylesheet" href="css/style.css?v=20260616-1" />
   <link rel="stylesheet" href="css/security-search.css?v=20261105-1" />
+  <link rel="stylesheet" href="css/operations.css?v=1.2.68" />
   <link rel="stylesheet" href="css/software-inventory.css?v=1.2.63" />
   <script src="js/chart.umd.min.js"></script>
   <script>
@@ -454,6 +455,16 @@
 
       <!-- ===== SECURITY PAGE ===== -->
       <div class="page" id="page-security">
+        <nav class="ops-tabs" aria-label="보안 정보"><button id="ops-advisory-tab" aria-selected="true">보안 업데이트 권고</button><button id="ops-nvd-tab" aria-selected="false">로컬 NVD 검색</button></nav>
+        <section id="ops-advisories">
+          <header class="ops-heading"><h1>보안 업데이트 권고</h1><span id="ops-sync-status" role="status"></span></header>
+          <form id="ops-advisory-form" class="ops-toolbar"><input id="ops-advisory-query" type="search" maxlength="200" placeholder="제품명, 공지 제목, CVE" aria-label="보안공지 검색" /><button class="btn-primary" type="submit"><i data-lucide="search"></i>검색</button><button type="button" id="ops-sync" class="btn-secondary" data-ops-admin><i data-lucide="refresh-cw"></i>RSS 동기화</button><label class="btn-secondary ops-import" data-ops-admin><i data-lucide="upload"></i>RSS 파일 반입<input id="ops-rss-file" type="file" accept=".xml,.rss" /></label></form>
+          <p class="ops-note">KISA 공개 보안공지 · 영향 후보는 제품명 기준이며 취약 버전 확인이 필요합니다.</p>
+          <div id="ops-advisory-error" class="ops-error" role="alert" hidden></div>
+          <div id="ops-advisory-list" aria-live="polite"></div>
+          <footer class="ops-toolbar"><button id="ops-advisory-prev" class="btn-secondary" title="이전 페이지" aria-label="이전 페이지"><i data-lucide="chevron-left"></i></button><span id="ops-advisory-page"></span><button id="ops-advisory-next" class="btn-secondary" title="다음 페이지" aria-label="다음 페이지"><i data-lucide="chevron-right"></i></button></footer>
+        </section>
+        <div id="ops-nvd" hidden>
         <header class="vs-heading">
           <div><span class="vs-eyebrow">SECURITY / LOCAL INTELLIGENCE</span><h1>취약점 검색</h1></div>
           <div class="vs-source"><span class="vs-source-label"><i data-lucide="database"></i> 로컬 NVD</span><span id="vs-updated">마지막 업데이트 확인 중</span></div>
@@ -509,7 +520,17 @@
       </div>
 
       <!-- ===== SECURITY CHECK RESULTS PAGE ===== -->
+      </div>
       <div class="page" id="page-security-checks">
+        <section class="ops-check-section">
+          <header class="ops-heading"><h2>서버별 원격 점검</h2><button id="ops-check-refresh" class="btn-secondary" title="새로고침"><i data-lucide="refresh-cw"></i></button></header>
+          <div id="ops-check-error" class="ops-error" role="alert" hidden></div>
+          <div class="ops-table-scroll"><table class="data-table"><thead><tr><th>서버명</th><th>IP</th><th>Agent 연결</th><th>최근 작업</th><th>액션</th></tr></thead><tbody id="ops-check-servers"></tbody></table></div>
+          <form id="ops-check-filter" class="ops-toolbar"><select id="ops-check-device" aria-label="조회 서버"><option value="">전체 서버</option></select><label>시작일 <input id="ops-check-from" type="date" /></label><label>종료일 <input id="ops-check-to" type="date" /></label><button class="btn-secondary" type="submit"><i data-lucide="search"></i>조회</button></form>
+          <div class="ops-table-scroll"><table class="data-table"><thead><tr><th>서버 / IP</th><th>유형</th><th>요청 일시</th><th>실행 일시</th><th>완료 일시</th><th>상태 / 결과</th></tr></thead><tbody id="ops-check-jobs"></tbody></table></div>
+          <footer class="ops-toolbar"><button id="ops-job-prev" class="btn-secondary" title="이전 이력" aria-label="이전 이력"><i data-lucide="chevron-left"></i></button><span id="ops-job-page"></span><button id="ops-job-next" class="btn-secondary" title="다음 이력" aria-label="다음 이력"><i data-lucide="chevron-right"></i></button></footer>
+        </section>
+        <dialog id="ops-token-dialog" class="ops-dialog"><header class="ops-heading"><h2>서버별 원격 점검 연결키</h2><button id="ops-token-close" class="btn-secondary" title="닫기" aria-label="닫기"><i data-lucide="x"></i></button></header><pre id="ops-token-value"></pre></dialog>
         <div class="page-toolbar">
           <select class="select-sm" id="check-upload-type">
             <option value="security">취약점</option>
@@ -726,6 +747,7 @@
       <div class="page" id="page-devices">
         <div class="page-toolbar">
           <button class="btn-primary" onclick="showAddDevice()">+ 장비 추가</button>
+          <button class="btn-secondary" id="ops-export-assets"><i data-lucide="download"></i>엑셀 다운로드</button>
         </div>
         <table class="data-table">
           <thead><tr><th>장비명</th><th>유형</th><th>IP 주소</th><th>SNMP 버전</th><th>Community</th><th>OS/펌웨어</th><th>상태</th><th>액션</th></tr></thead>
@@ -910,8 +932,9 @@
   </div>
 
   <script src="js/lucide.min.js?v=1.8.0"></script>
-  <script src="js/dashboard.js?v=1.2.63"></script>
+  <script src="js/dashboard.js?v=1.2.68"></script>
   <script src="js/software-inventory.js?v=1.2.63"></script>
   <script src="js/security-search.js?v=20261107-2"></script>
+  <script src="js/operations.js?v=1.2.68"></script>
 </body>
 </html>

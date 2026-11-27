@@ -1,5 +1,7 @@
 # NetGuard Agent - Windows 설치 매뉴얼
 
+> 2026-11-27 / v1.2.68: [원격 점검 설치·연결키 설정](OPERATIONS_UPDATE_GUIDE.md) 및 [Windows 운영](OPERATIONS_WINDOWS.md) 추가. `remote_checks.ps1/.py`와 두 Windows 점검 스크립트를 함께 갱신한다. 기존 JSON을 보존하고 중앙 서버를 먼저 갱신한다. 원격 점검은 기본 비활성이다.
+
 > 2026-11-25 / v1.2.67: [Agent 중복/IP 변경 패치](AGENT_IDENTITY_GUIDE.md)는 중앙 서버부터 적용한다. 기존 설정을 보존하여 9개 코드를 교체하고 구버전 중복 프로세스를 확인한다. 같은 이름의 서비스/예약 작업이 함께 있으면 서비스를 우선한다. 아래 v1.2.64 내용은 이전 변경 이력이다.
 
 > 2026-11-08 / v1.2.64: 설치 경로 오류 및 사전 검사를 수정했다. 기존 설치는 재설치 대신 [Windows Agent 호환성 가이드](WINDOWS_AGENT_COMPATIBILITY.md)의 9개 코드 파일 교체 절차로 설정을 보존한다. windows_agent_common.ps1과 software_inventory.ps1/.py도 함께 배포한다. v1.2.63의 소프트웨어 수집 기능은 유지한다.

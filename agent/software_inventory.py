@@ -12,7 +12,7 @@ import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-AGENT_VERSION = '1.2.67'
+AGENT_VERSION = '1.2.68'
 MAX_ITEMS = 10000
 
 

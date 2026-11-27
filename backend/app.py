@@ -20,6 +20,9 @@ from collectors.snmp_collector import SNMPCollector
 from collectors.env_collector import EnvCollector
 from api.routes import router as api_router
 from api.software_routes import router as software_router
+from api.advisory_routes import router as advisory_router
+from api.check_job_routes import router as check_job_router
+from api.asset_routes import router as asset_router
 from api.agent_routes import get_agent_live_ips, get_agent_live_results, router as agent_router
 from alerts.alert_manager import AlertManager
 from security.cve_checker import CVEChecker
@@ -41,7 +44,7 @@ logger = logging.getLogger('netguard')
 
 app = FastAPI(
     title="NetGuard SNMP Dashboard API",
-    version="1.0.0",
+    version="1.2.68",
     docs_url="/api/docs",
     redoc_url=None
 )
@@ -87,6 +90,9 @@ app.include_router(auth_router,  prefix="/api")
 app.include_router(api_router,   prefix="/api")
 app.include_router(agent_router)
 app.include_router(software_router)
+app.include_router(advisory_router)
+app.include_router(check_job_router)
+app.include_router(asset_router)
 
 # Global services
 snmp_collector: Optional[SNMPCollector] = None
@@ -136,11 +142,20 @@ async def startup():
     cve_checker = CVEChecker()
 
     asyncio.create_task(collection_loop())
+    from security.advisories import advisory_loop
+    app.state.advisory_task = asyncio.create_task(advisory_loop(await get_db_pool(),settings))
     logger.info("NetGuard started successfully")
 
 
 @app.on_event("shutdown")
 async def shutdown():
+    task = getattr(app.state,'advisory_task',None)
+    if task:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     await close_db_pool()
     logger.info("NetGuard shutdown complete")
 
@@ -187,13 +202,15 @@ async def collection_loop():
                         exc_info=True,
                     )
 
-            resolved_event_ids = await _resolve_switch_port_events(
-                pool,
-                devices,
-                results,
-                clear_existing=not switch_port_alerts_initialized,
-            )
-            switch_port_alerts_initialized = True
+            from switch_links import monitor_links
+            link_alerts, resolved_event_ids = await monitor_links(pool, results)
+            for alert in link_alerts:
+                await alert_manager.dispatch(alert)
+                if alert['link_recovery']:
+                    async with pool.acquire() as conn:
+                        await conn.execute("UPDATE events SET status='resolved',resolved_at=NOW() WHERE id=$1", alert['id'])
+                    resolved_event_ids.append(alert['id'])
+            all_alerts.extend(link_alerts)
 
             if all_alerts:
                 await manager.broadcast({"type": "alert", "alerts": all_alerts})

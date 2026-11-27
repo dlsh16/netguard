@@ -15,7 +15,8 @@
 [CmdletBinding()]
 param(
     [string]$OutputDir = "",
-    [switch]$NoOpen
+    [switch]$NoOpen,
+    [switch]$Unattended
 )
 
 Set-StrictMode -Off
@@ -1302,7 +1303,7 @@ try {
     else { Write-Host "  ✗ CSV 생성 실패 (파일이 존재하지 않음)" -ForegroundColor Red }
 } catch { Write-Host "  ✗ CSV 오류: $_" -ForegroundColor Red }
 
-$xlResult = New-ExcelReport -OutPath $xlsxPath
+$xlResult = if ($Unattended) { $false } else { New-ExcelReport -OutPath $xlsxPath }
 if ($xlResult) {
     Write-Host "  ✓ Excel: $xlsxPath" -ForegroundColor Green
 } else {
@@ -1310,9 +1311,11 @@ if ($xlResult) {
 }
 
 # ── 네트워크 보고서 생성 ──────────────────────────────────────────
+if (-not $Unattended -and $env:NETGUARD_REPORT_SHARE) {
 $netShare = "\\10.60.8.169\Server_check"
-$netUser  = "maintenance"
-$netPass  = "veQ5vU3&"
+$netShare = $env:NETGUARD_REPORT_SHARE
+$netUser = $env:NETGUARD_REPORT_USER
+$netPass = $env:NETGUARD_REPORT_PASSWORD
 
 Write-Host "`n  [네트워크] 보고서 생성 중... ($netShare)" -ForegroundColor Cyan
 try {
@@ -1341,10 +1344,11 @@ try {
 }
 
 Write-Host ""
+}
 if (-not $NoOpen) {
     $ans = Read-Host "  HTML 보고서를 지금 여시겠습니까? (Y/N)"
     if ($ans -match "^[Yy]") { Start-Process $htmlPath }
 }
 
 Write-Host "`n  진단이 완료되었습니다.`n" -ForegroundColor Cyan
-Read-Host "  Enter 키를 누르면 종료합니다"
+if (-not $Unattended) { Read-Host "  Enter 키를 누르면 종료합니다" }

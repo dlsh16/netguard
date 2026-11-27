@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# NetGuard Linux Agent installer 1.2.66. Offline: no dnf/apt/pip or network downloads.
+# NetGuard Linux Agent installer 1.2.68. Offline: no dnf/apt/pip or network downloads.
 set -euo pipefail
 umask 077
 
@@ -24,7 +24,7 @@ INSTALL_DIR=/opt/netguard-agent
 CONFIG_FILE="$INSTALL_DIR/agent_config.json"
 SERVICE_FILE=/etc/systemd/system/netguard-agent.service
 SERVICE=netguard-agent
-for target in "$INSTALL_DIR" "$CONFIG_FILE" "$SERVICE_FILE" "$INSTALL_DIR/netguard_agent.py" "$INSTALL_DIR/software_inventory.py" "$INSTALL_DIR/restart_agent.sh"; do
+for target in "$INSTALL_DIR" "$CONFIG_FILE" "$SERVICE_FILE" "$INSTALL_DIR/netguard_agent.py" "$INSTALL_DIR/software_inventory.py" "$INSTALL_DIR/remote_checks.py" "$INSTALL_DIR/check_scripts" "$INSTALL_DIR/restart_agent.sh"; do
     [[ ! -L $target ]] || fail "Refusing to replace a symbolic link: $target"
 done
 
@@ -33,13 +33,13 @@ for command in systemctl systemd-analyze install mktemp useradd groupadd getent 
 done
 [[ -d /run/systemd/system ]] || fail 'systemd must be running as the system service manager.'
 [[ -f $HELPER ]] || fail 'scripts/linux_agent_setup.py missing; extract the whole package.'
-for file in netguard_agent.py software_inventory.py restart_agent.sh; do
+for file in netguard_agent.py software_inventory.py remote_checks.py restart_agent.sh; do
     [[ -f $AGENT_SRC/$file ]] || fail "Required package file missing: agent/$file"
 done
 bash -n "$AGENT_SRC/restart_agent.sh"
 
 PYTHON_BIN=''
-for candidate in "${NETGUARD_AGENT_PYTHON:-}" python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3.7 python3.6 python3; do
+for candidate in "${NETGUARD_AGENT_PYTHON:-}" python3.13 python3.12 python3.11 python3.10 python3.9 python3.8 python3.7 python3.6 python3 /usr/libexec/platform-python; do
     [[ -n $candidate ]] || continue
     path=$(command -v "$candidate" 2>/dev/null) || { [[ -z ${NETGUARD_AGENT_PYTHON:-} ]] || fail 'Selected Python not found.'; continue; }
     if "$path" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 6) else 1)' 2>/dev/null; then
@@ -99,7 +99,7 @@ BACKUP=''
 if [[ $MODE == update ]]; then
     install -d -o root -g root -m 0755 /var/backups
     BACKUP=$(mktemp -d /var/backups/netguard-agent.XXXXXXXX)
-    for file in netguard_agent.py software_inventory.py restart_agent.sh agent_config.json; do
+    for file in netguard_agent.py software_inventory.py remote_checks.py restart_agent.sh agent_config.json; do
         if [[ -f $INSTALL_DIR/$file ]]; then cp -p -- "$INSTALL_DIR/$file" "$BACKUP/"; fi
     done
     cp -p -- "$SERVICE_FILE" "$BACKUP/netguard-agent.service"
@@ -114,7 +114,9 @@ fi
 getent group ngagent >/dev/null || fail 'The ngagent group is missing. Review the existing service account.'
 [[ $(id -u ngagent) != 0 ]] || fail 'ngagent must not be a root account.'
 install -d -o ngagent -g ngagent -m 0750 "$INSTALL_DIR"
-install -o root -g ngagent -m 0640 "$AGENT_SRC/netguard_agent.py" "$AGENT_SRC/software_inventory.py" "$INSTALL_DIR/"
+install -o root -g ngagent -m 0640 "$AGENT_SRC/netguard_agent.py" "$AGENT_SRC/software_inventory.py" "$AGENT_SRC/remote_checks.py" "$INSTALL_DIR/"
+install -d -o root -g ngagent -m 0750 "$INSTALL_DIR/check_scripts"
+install -o root -g ngagent -m 0640 "$AGENT_SRC/check_scripts/cve_check_linux.sh" "$AGENT_SRC/check_scripts/maintenance_linux.sh" "$INSTALL_DIR/check_scripts/"
 install -o root -g ngagent -m 0750 "$AGENT_SRC/restart_agent.sh" "$INSTALL_DIR/"
 if [[ $MODE == install ]]; then
     install -o root -g ngagent -m 0640 "$STAGE/agent_config.json" "$CONFIG_FILE"

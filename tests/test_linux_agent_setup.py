@@ -115,8 +115,9 @@ class LinuxInstallerIntegrationTests(unittest.TestCase):
         (self.source / 'agent').mkdir()
         for name in ('install_agent_linux.sh', 'linux_agent_setup.py'):
             shutil.copy2(ROOT / 'scripts' / name, self.source / 'scripts' / name)
-        for name in ('netguard_agent.py', 'software_inventory.py', 'restart_agent.sh'):
+        for name in ('netguard_agent.py', 'software_inventory.py', 'remote_checks.py', 'restart_agent.sh'):
             shutil.copy2(ROOT / 'agent' / name, self.source / 'agent' / name)
+        shutil.copytree(ROOT / 'agent/check_scripts',self.source / 'agent/check_scripts')
         self.bin = Path(self.temp.name) / 'bin'
         self.bin.mkdir()
         self.calls = Path(self.temp.name) / 'calls.jsonl'

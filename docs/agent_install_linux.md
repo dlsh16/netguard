@@ -1,6 +1,8 @@
 # NetGuard Agent Linux 설치 및 운영 매뉴얼
 
-버전: v1.2.67 / 업데이트: 2026-11-25
+버전: v1.2.68 / 업데이트: 2026-11-27
+
+> 최신 [원격 점검 설치·연결키·권한 설정](OPERATIONS_UPDATE_GUIDE.md) 및 [Rocky 운영](OPERATIONS_ROCKY.md)을 먼저 확인한다. 기본 Agent는 ngagent를 유지하고 승인된 고정 점검만 별도 wrapper로 실행한다. 현재 Agent 보고 버전은 1.2.68이다. 아래 버전 표기는 이전 이력이다.
 
 > v1.2.67은 [중앙 서버 선행 패치 및 Agent 갱신](AGENT_IDENTITY_GUIDE.md)을 먼저 따른다. 아래 v1.2.66의 설치·입력·설정 보존 절차는 동일하며 패키지/해제 경로는 v1.2.67로 바꾼다. 현재 수집 보고 버전은 1.2.67이다.
 

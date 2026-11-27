@@ -22,6 +22,7 @@ fs.mkdirSync(output, { recursive: true });
   }
   try {
     await page.goto(base);
+    await page.locator('#ops-nvd-tab').click();
     await ready();
     await page.locator('.vs-asset-table tbody tr').first().waitFor();
     assert.equal(await page.locator('.vs-asset-table tbody tr').count(), 6);
@@ -86,7 +87,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.waitForTimeout(800);
     assert.match(await page.locator('#vs-result-list').innerText(), /CVE-2099-10001/);
     await page.unroute('**/api/security/search?*');
-    await page.reload(); await ready();
+    await page.reload(); await page.locator('#ops-nvd-tab').click(); await ready();
     assert.equal(await page.locator('#vs-query').inputValue(), 'cve:CVE-2099-10001');
     await page.locator('#vs-reset').click(); await ready();
     await page.setViewportSize({ width: 390, height: 844 });
@@ -100,7 +101,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.locator('#vs-filter-toggle').click();
     assert.equal(await page.locator('#vs-filter-sidebar').isVisible(), true);
     await page.locator('#vs-filter-toggle').click();
-    await page.goto(base + '/?role=operator'); await ready();
+    await page.goto(base + '/?role=operator'); await page.locator('#ops-nvd-tab').click(); await ready();
     await page.locator('#vs-cves-tab').click(); await ready();
     assert.equal(await page.locator('[data-action="complete"], [data-action="reopen"]').count(), 0);
     assert.equal(await page.locator('.nav-item[data-page="devices"]').count(), 0);

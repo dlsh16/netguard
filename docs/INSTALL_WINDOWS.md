@@ -1,7 +1,7 @@
 ﻿# NetGuard SNMP Dashboard
 # Windows 설치 및 운영 메뉴얼
 
-> 2026-11-25 / v1.2.67: [Agent 중복/IP 식별 설치·운영 절차](AGENT_IDENTITY_GUIDE.md)의 Windows 중앙 서버 패치 후 Agent를 갱신한다. DB nullable 컬럼/인덱스를 추가하므로 서버 재시작이 필요하며 데이터 초기화는 하지 않는다. 아래 항목은 이전 버전 이력이다.
+> 2026-11-27 / v1.2.68: [RSS·원격 점검·XLSX·링크 감지 설치](OPERATIONS_UPDATE_GUIDE.md) 및 [Windows 운영 메뉴얼](OPERATIONS_WINDOWS.md)을 먼저 따른다. 중앙 서버부터 갱신하며 기존 DB/설정을 초기화하지 않는다. 아래 항목은 이전 버전 이력이다.
 
 > 2026-11-08 / v1.2.64 추가: 대상 Windows Agent 설치 오류는 [런타임 사전 검사 가이드](WINDOWS_AGENT_COMPATIBILITY.md)를 따른다. `install.bat --check`로 검사하며 Windows PowerShell 5.1/.NET Framework 4.5.2 이상이 필요하다. 이번 수정만으로 중앙 서버/DB를 재설치하거나 재시작하지 않는다.
 

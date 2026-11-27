@@ -225,20 +225,22 @@ if ($NssmPath) {
 }
 Write-Step "Agent mode: $AgentMode"
 
-foreach ($required in @($AgentScript, 'software_inventory.ps1', 'software_inventory.py')) {
+foreach ($required in @($AgentScript, 'software_inventory.ps1', 'software_inventory.py', 'remote_checks.ps1', 'remote_checks.py', 'check_scripts/CVE_Check.ps1', 'check_scripts/Maintenance_Windows.ps1')) {
     if (-not (Test-Path -LiteralPath (Join-Path $ScriptDir $required) -PathType Leaf)) {
         throw "Required agent file missing: $required. Extract the complete agent package first."
     }
 }
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $ScriptDir $AgentScript) -Destination $InstallDir -Force
-foreach ($helper in @("windows_agent_common.ps1", "software_inventory.ps1", "software_inventory.py", "restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
+foreach ($helper in @("windows_agent_common.ps1", "remote_checks.ps1", "remote_checks.py", "software_inventory.ps1", "software_inventory.py", "restart_agent.ps1", "restart_agent.bat", "start_agent_background.ps1", "start_agent_background.bat")) {
     $src = Join-Path $ScriptDir $helper
     if (Test-Path $src) {
         Copy-Item -LiteralPath $src -Destination $InstallDir -Force
     }
 }
 Write-Step "Agent files copied to $InstallDir" "Green"
+New-Item -ItemType Directory -Path (Join-Path $InstallDir 'check_scripts') -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $ScriptDir 'check_scripts/CVE_Check.ps1'),(Join-Path $ScriptDir 'check_scripts/Maintenance_Windows.ps1') -Destination (Join-Path $InstallDir 'check_scripts') -Force
 
 $config = @{
     server_url = $ServerUrl
@@ -249,8 +251,16 @@ $config = @{
     location = $Location
     log_file = (Join-Path $InstallDir "agent.log")
     software_inventory = @{ enabled = $true; interval_hours = 6; tomcat_homes = @(); extra_software = @() }
+    remote_checks = @{ enabled = $false; token = '' }
 }
-$config | ConvertTo-Json -Depth 8 | Out-File -FilePath (Join-Path $InstallDir "agent_config.json") -Encoding UTF8
+$existingConfigPath = Join-Path $InstallDir 'agent_config.json'
+if (Test-Path -LiteralPath $existingConfigPath) {
+    $previousConfig = Get-Content -LiteralPath $existingConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($previousConfig.remote_checks) { $config.remote_checks = $previousConfig.remote_checks }
+}
+$config | ConvertTo-Json -Depth 8 | Out-File -FilePath $existingConfigPath -Encoding UTF8
+& icacls.exe $InstallDir /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' /T /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'Failed to restrict Agent directory to SYSTEM and Administrators.' }
 Write-Step "agent_config.json created" "Green"
 
 Stop-And-Remove-Existing -NssmPath $NssmPath

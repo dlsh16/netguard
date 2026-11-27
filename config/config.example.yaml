@@ -66,3 +66,7 @@ ups_batt_crit: 15.0
 # Anomaly detection
 anomaly_zscore_threshold: 3.0
 anomaly_window_minutes: 60
+# Security advisories: enable only with approved internet egress.
+advisory_sync_enabled: false
+advisory_sync_interval: 900
+advisory_provider: kisa-rss

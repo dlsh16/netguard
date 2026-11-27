@@ -11,6 +11,7 @@ import csv
 import html
 import json
 import logging
+import os
 import re
 import uuid
 import zipfile
@@ -21,7 +22,7 @@ from xml.etree import ElementTree as ET
 
 logger = logging.getLogger("netguard.check_reports")
 
-REPORT_STORAGE_DIR = Path(__file__).resolve().parent.parent / "data" / "security_reports"
+REPORT_STORAGE_DIR = Path(os.environ.get('NETGUARD_REPORT_DIR', Path(__file__).resolve().parents[2] / 'data' / 'security_reports'))
 VALID_RUN_TYPES = {"maintenance", "security", "combined"}
 
 
@@ -45,7 +46,7 @@ def _normalize_status(value: str) -> str:
     status = _clean_text(value).lower()
     if status in {"정상", "양호", "pass", "ok", "good"}:
         return "pass"
-    if status in {"취약", "실패", "위험", "fail", "bad", "critical"}:
+    if status in {"취약", "불량", "실패", "위험", "fail", "bad", "critical"}:
         return "fail"
     if status in {"주의", "확인필요", "경고", "warn", "warning", "review"}:
         return "warn"
@@ -280,6 +281,7 @@ async def _upsert_device(conn, item: Dict[str, Any]) -> int:
 
 
 async def save_report(conn, filename: str, data: bytes, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    options = options or {}
     parsed = parse_report(filename, data, options)
     info = parsed["info"]
     rows = parsed["rows"]
@@ -301,6 +303,8 @@ async def save_report(conn, filename: str, data: bytes, options: Optional[Dict[s
         filename,
         json.dumps({"report_date": info.get("report_date")}, ensure_ascii=False),
     )
+    if options.get('started_at'):
+        await conn.execute('UPDATE check_runs SET started_at=$2 WHERE id=$1',run_id,options['started_at'])
     await conn.execute(
         """
         INSERT INTO report_files (run_id, original_name, stored_name, mime_type, size_bytes, storage_path)
@@ -315,7 +319,7 @@ async def save_report(conn, filename: str, data: bytes, options: Optional[Dict[s
     )
 
     for item in rows:
-        device_id = await _upsert_device(conn, item)
+        device_id = options.get('device_id') or await _upsert_device(conn, item)
         check_item_id = await conn.fetchval(
             """
             INSERT INTO check_items (code, name, category, severity, description)

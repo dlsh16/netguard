@@ -536,9 +536,9 @@ class SNMPCollector:
         ifdata: Dict[str, dict] = {}
         for field, oid in [('descr', OID['ifDescr']), ('if_name', OID['ifName']),
                             ('alias', OID['ifAlias']), ('status', OID['ifOperStatus']),
+                            ('admin', '1.3.6.1.2.1.2.2.1.7'),
                             ('speed', OID['ifSpeed']), ('in_oct', OID['ifInOctets']),
-                            ('out_oct', OID['ifOutOctets']), ('in_err', OID['ifInErrors']),
-                            ('out_err', OID['ifOutErrors'])]:
+                            ('out_oct', OID['ifOutOctets'])]:
             rows = await _bulk(self.engine, auth, transport, oid)
             for oid_str, val in rows:
                 idx = oid_str.split('.')[-1]
@@ -556,12 +556,11 @@ class SNMPCollector:
                 'descr':   descr or name,
                 'if_name': if_name,
                 'alias':   str(d.get('alias') or '').strip(),
-                'status':  status_map.get(d.get('status', '2'), 'unknown'),
+                'status':  status_map.get(str(d.get('status', '')), 'unknown'),
+                'admin_status': status_map.get(str(d.get('admin', '')), 'unknown'),
                 'speed_mbps': safe_int(d.get('speed', 0) or 0) // 1_000_000,
                 'in_octets':  safe_int(d.get('in_oct', 0) or 0),
                 'out_octets': safe_int(d.get('out_oct', 0) or 0),
-                'in_errors':  safe_int(d.get('in_err', 0) or 0),
-                'out_errors': safe_int(d.get('out_err', 0) or 0),
             })
         return sorted(interfaces, key=lambda item: item['index'])
 

@@ -626,7 +626,7 @@ class SoftwareInventoryWorker:
                                         stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(SCRIPT_DIR),
                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if IS_WINDOWS else 0)
         self.started = now
-        self.logger.info('Software inventory started in background (agent 1.2.67)')
+        self.logger.info('Software inventory started in background (agent 1.2.68)')
 
 
 def run_agent(cfg, logger):
@@ -663,6 +663,8 @@ def run_agent(cfg, logger):
     time.sleep(2)
     next_check_at = 0.0
     software_worker = SoftwareInventoryWorker(cfg, logger)
+    from remote_checks import RemoteCheckWorker
+    remote_worker = RemoteCheckWorker(cfg, logger)
 
     while True:
         start = time.time()
@@ -711,6 +713,7 @@ def run_agent(cfg, logger):
 
         try:
             software_worker.tick()
+            remote_worker.tick()
         except Exception as exc:
             logger.warning('Software inventory worker: %s', str(exc)[:200])
         elapsed = time.time() - start

@@ -45,6 +45,16 @@ async def init_db():
         await conn.execute("SELECT pg_advisory_lock(hashtext('netguard_schema_init'));")
         try:
             await _init_db_locked(conn)
+            from operations_schema import init_operations_schema
+            await init_operations_schema(conn)
+            await conn.execute('''INSERT INTO changelog(version,title,body,changes,created_by,released_at)
+                SELECT 'v1.2.68','보안공지 RSS 및 원격 점검','기존 데이터 보존형 기능 확장',
+                    $1::jsonb,'system','2026-11-27'::timestamptz
+                WHERE NOT EXISTS(SELECT 1 FROM changelog WHERE version='v1.2.68')''',
+                json.dumps(['KISA 보안공지 RSS / 오프라인 XML 반입 / API Provider 확장 경계',
+                            '서버별 관리자 원격 취약점·정기 점검 및 실행 날짜 조회',
+                            '정보자산목록 XLSX 다운로드',
+                            '스위치 링크 Up/Down 상태 전이 및 재시작 중복 방지'],ensure_ascii=False))
         finally:
             await conn.execute("SELECT pg_advisory_unlock(hashtext('netguard_schema_init'));")
 

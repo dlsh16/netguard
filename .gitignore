@@ -31,6 +31,9 @@ config/config.yaml
 agent/agent_config.json
 agent/*_config.json
 agent/check_scripts/output/
+agent/check_output/
+agent/remote_check_pending.*
+*.xlsx.inspect.ndjson
 
 # Runtime data, large NVD cache, reports, and local DB files
 data/**

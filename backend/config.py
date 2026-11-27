@@ -57,6 +57,9 @@ class Settings:
     # CVE / NVD
     NVD_CACHE_DIR: str = "data/nvd_cache"
     CVE_CHECK_INTERVAL: int = 3600  # seconds
+    ADVISORY_SYNC_ENABLED: bool = False  # Enable only where approved internet egress is available.
+    ADVISORY_SYNC_INTERVAL: int = 900
+    ADVISORY_PROVIDER: str = 'kisa-rss'
 
     # Thresholds (defaults — overridable per-device in DB)
     CPU_WARN: float = 80.0

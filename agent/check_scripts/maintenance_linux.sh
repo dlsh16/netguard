@@ -15,7 +15,7 @@ declare -a RESULTS=()
 CNT_NORMAL=0; CNT_WARN=0; CNT_CRIT=0; CNT_MANUAL=0; CNT_NA=0
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output"
+OUTPUT_DIR="${NETGUARD_CHECK_OUTPUT:-${SCRIPT_DIR}/output}"
 
 # ── 헬퍼 함수 ──────────────────────────────────────────────────────────────
 add_result() {
@@ -787,7 +787,9 @@ check_update_misc() {
     # L-43 시스템 패키지 업데이트 가능 여부
     local update_count status
     update_count=0
-    if command -v dnf &>/dev/null; then
+    if [[ ${NETGUARD_CHECK_UNATTENDED:-0} == 1 ]]; then
+        status="확인필요"
+    elif command -v dnf &>/dev/null; then
         update_count=$(dnf check-update --quiet 2>/dev/null | grep -c "^[a-zA-Z]" || echo 0)
     elif command -v yum &>/dev/null; then
         update_count=$(yum check-update --quiet 2>/dev/null | grep -c "^[a-zA-Z]" || echo 0)
@@ -795,7 +797,10 @@ check_update_misc() {
         apt-get update -qq 2>/dev/null
         update_count=$(apt-get upgrade -s 2>/dev/null | grep -c "^Inst" || echo 0)
     fi
-    if [ "${update_count:-0}" -ge 50 ]; then
+    if [[ ${NETGUARD_CHECK_UNATTENDED:-0} == 1 ]]; then
+        status="확인필요"
+        update_count="미조회 (무인 점검: 외부 저장소 접근 안 함)"
+    elif [ "${update_count:-0}" -ge 50 ]; then
         status="경고"
     elif [ "${update_count:-0}" -ge 10 ]; then
         status="주의"
@@ -1136,9 +1141,9 @@ printf "  ${GRAY}═════════════════════
 
 # ── 네트워크 공유 설정 ────────────────────────────────────────────
 NAS_HOST="10.60.8.169"
-NAS_SHARE="//10.60.8.169/Server_maintenance"
-NAS_USER="maintenance"
-NAS_PASS='veQ5vU3&'
+NAS_SHARE="${NETGUARD_REPORT_SHARE:-}"
+NAS_USER="${NETGUARD_REPORT_USER:-}"
+NAS_PASS="${NETGUARD_REPORT_PASSWORD:-}"
 
 # ── 파일명: [호스트명]_[IP]_[날짜] ──────────────────────────────
 DATE_STR=$(date '+%Y%m%d')
@@ -1159,6 +1164,10 @@ printf "    HTML: ${HTML_PATH}\n"
 printf "    CSV : ${CSV_PATH}\n"
 
 # ── 네트워크 공유 저장 ────────────────────────────────────────────
+if [[ ${NETGUARD_CHECK_UNATTENDED:-0} == 1 || -z ${NAS_SHARE:-} ]]; then
+    echo 'Network share transfer skipped; reports remain in the local output directory.'
+    exit 0
+fi
 echo ""
 printf "  ${CYAN}네트워크 공유 저장 중... (${NAS_SHARE})${NC}\n"
 if command -v smbclient &>/dev/null; then

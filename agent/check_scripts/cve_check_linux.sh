@@ -17,7 +17,7 @@ CNT_PASS=0; CNT_FAIL=0; CNT_NA=0; CNT_MANUAL=0
 
 # 출력 디렉터리
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-OUTPUT_DIR="${SCRIPT_DIR}/output"
+OUTPUT_DIR="${NETGUARD_CHECK_OUTPUT:-${SCRIPT_DIR}/output}"
 
 # ── 헬퍼 함수 ──────────────────────────────────────────────────────────────
 add_result() {
@@ -618,7 +618,9 @@ check_patch() {
 
     # U-48: 보안 업데이트 미적용 패키지
     local pending_count=0
-    if command -v dnf &>/dev/null; then
+    if [[ ${NETGUARD_CHECK_UNATTENDED:-0} == 1 ]]; then
+        status="확인필요"
+    elif command -v dnf &>/dev/null; then
         pending_count=$(dnf check-update --security -q 2>/dev/null | grep -c "^[a-zA-Z]" || true)
     elif command -v apt-get &>/dev/null; then
         apt-get update -qq 2>/dev/null
@@ -627,6 +629,10 @@ check_patch() {
         pending_count=$(yum check-update --security -q 2>/dev/null | grep -c "^[a-zA-Z]" || true)
     fi
     [[ "$pending_count" -eq 0 ]] && status="양호" || status="불량"
+    if [[ ${NETGUARD_CHECK_UNATTENDED:-0} == 1 ]]; then
+        status="확인필요"
+        pending_count="미조회 (무인 점검: 외부 저장소 접근 안 함)"
+    fi
     add_result "U-48" "패치관리" "보안 업데이트 적용 현황" \
         "미적용 보안 업데이트 없으면 양호" "상" "$status" \
         "미적용 보안 업데이트: ${pending_count}건" \
